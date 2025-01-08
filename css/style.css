@@ -137,3 +137,7 @@ h1 {
 .container::-webkit-scrollbar {
     width: 8px;
 }
+
+footer{
+    text-align: center;
+}
