@@ -1,5 +1,5 @@
 # chat-app
-this is my first realt-time chat-app
+This is my first realt-time chat-app
 
 To use chat app follow this steps:
 1. first of all open terminal then "cd  nodeServer".
