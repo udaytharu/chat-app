@@ -141,3 +141,79 @@ h1 {
 footer{
     text-align: center;
 }
+
+/* Responsive Adjustments for 768px Screens */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 2rem; /* Reduce heading size for better readability */
+    }
+
+    .container {
+        width: 90%; /* Increase container width for smaller screens */
+        height: 50vh; /* Adjust height for better usability */
+    }
+
+    .message {
+        width: 40%; /* Increase message width for better readability */
+    }
+
+    #send-container {
+        width: 95%; /* Adjust width for better fit on smaller screens */
+        padding: 8px; /* Reduce padding for a compact layout */
+    }
+
+    #messageInp {
+        width: 80%; /* Reduce input field width for better fit */
+        font-size: 0.95rem; /* Slightly reduce font size for smaller screens */
+    }
+
+    .btn {
+        padding: 0 15px; /* Reduce button padding for a compact layout */
+        font-size: 0.95rem; /* Slightly reduce font size for smaller screens */
+    }
+
+    .logo {
+        width: 55px; /* Reduce logo size for smaller screens */
+        height: 55px;
+    }
+}
+   
+
+
+/* Responsive Adjustments for 480px Screens */
+@media (max-width: 480px) {
+    h1 {
+        font-size: 1.8rem; /* Further reduce heading size for better readability */
+    }
+
+    .container {
+        width: 95%; /* Increase container width to utilize more screen space */
+        height: 55vh; /* Adjust height for better usability */
+        padding: 15px; /* Reduce padding for a compact layout */
+    }
+
+    .message {
+        width: 80%; /* Increase message width for better readability */
+        margin: 10px 0; /* Adjust margin for better spacing */
+    }
+
+    #send-container {
+        width: 90%; /* Reduce width for better fit on small screens */
+        padding: 5px; /* Reduce padding for a compact layout */
+    }
+
+    #messageInp {
+        width: 70%; /* Reduce input field width for better fit */
+        font-size: 0.9rem; /* Slightly reduce font size for smaller screens */
+    }
+
+    .btn {
+        padding: 0 10px; /* Reduce button padding for a compact layout */
+        font-size: 0.9rem; /* Slightly reduce font size for smaller screens */
+    }
+
+    .logo {
+        width: 50px; /* Reduce logo size for smaller screens */
+        height: 50px;
+    }
+}
