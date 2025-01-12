@@ -43,12 +43,12 @@ io.on('connection', (socket) => {
         console.log(`Message from ${senderName}: ${message}`);
 
         // Broadcast the message to all clients except the sender
-    //     socket.broadcast.emit('receive', {
-    //         message,
-    //         name: senderName,
-    //         timestamp: new Date().toLocaleTimeString(), // Add timestamp
-    //     });
-    // });
+        socket.broadcast.emit('receive', {
+            message,
+            name: senderName,
+            timestamp: new Date().toLocaleTimeString(), // Add timestamp
+        });
+    });
 
     // Event: When a user disconnects
     socket.on('disconnect', () => {
