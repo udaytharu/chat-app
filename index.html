@@ -4,15 +4,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>chat-app - Realtime</title>
-    <script defer src="http://localhost:8000/socket.io/socket.io.js"></script>
-    <script defer src="js/client.js"></script>
-    <link rel="stylesheet" href="css/style.css">
+    <script defer src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script defer src="./js/client.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <nav>
-        <img class="logo" src="chat.png" alt="" srcset="">
+        <div class="logo-container">
+            <div class="chat-logo glass">
+                <div class="chat-bubble main-bubble">
+                    <span class="dots">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                    </span>
+                </div>
+            </div>
+        </div>
         <h1>CHAT WITH UDAY</h1>
     </nav>
+    <div class="theme-switch-wrapper">
+        <label class="theme-switch" for="checkbox">
+            <input type="checkbox" id="checkbox" />
+            <div class="slider round">
+                <span class="sun">☀️</span>
+                <span class="moon">🌙</span>
+            </div>
+        </label>
+    </div>
     <div class="container">
         <!-- <div class="message right">uday:hello</div>
         <div class="message left">ram:hi</div> -->
@@ -24,13 +47,20 @@
         </form>
     </div>
 
- <footer>
-        <div class="text">
-            <span>Created By
-                <a href="https://www.udayrajchaudhary.com.np/">uday-studio</a> &#169; 2024 All Rights Reserved 
-            </span>
+    <footer>
+        <div class="footer-content">
+            <div class="footer-text">
+                Created by
+                <a href="https://www.udayrajchaudhary.com.np/">uday-studio</a>
+                <span class="copyright">© 2024</span>
+            </div>
+            <div class="social-links">
+                <a href="#" class="social-icon"><i class="fab fa-github"></i></a>
+                <a href="#" class="social-icon"><i class="fab fa-linkedin"></i></a>
+                <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
+                <a href="#" class="social-icon"><i class="fab fa-instagram"></i></a>
+            </div>
         </div>
-      </footer>
-
+    </footer>
 </body>
 </html>
