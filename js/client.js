@@ -1,176 +1,109 @@
-// Create a configuration object
-const config = {
-    production: {
-        serverUrl: 'https://your-render-app-url.com'
-    },
-    development: {
-        serverUrl: 'http://localhost:8000'
-    }
-};
-
-// Use the appropriate server URL
-const isProduction = window.location.hostname !== 'localhost';
-const serverUrl = isProduction 
-    ? 'https://your-render-server-url.com' // You'll need to replace this with your actual server URL
-    : 'http://localhost:8000';
-
 // Initialize Socket.IO connection
-const socket = io(serverUrl);
+const socket = io('http://localhost:8000');
 
 // DOM Elements
 const form = document.getElementById('send-container');
 const messageInput = document.getElementById('messageInp');
 const messageContainer = document.querySelector('.container');
 const audio = new Audio('ting.mp3'); // Notification sound
+const sendButton = document.querySelector('.btn');
 
-// Theme switcher functionality
-document.addEventListener('DOMContentLoaded', () => {
-    const toggleSwitch = document.querySelector('#checkbox');
-    const currentTheme = localStorage.getItem('theme');
+// Add typing indicator to heading
+const heading = document.querySelector('h1');
+const typingIndicator = document.createElement('div');
+typingIndicator.className = 'typing-indicator';
+for (let i = 0; i < 3; i++) {
+    const dot = document.createElement('span');
+    typingIndicator.appendChild(dot);
+}
+heading.appendChild(typingIndicator);
 
-    // Check for saved theme preference
-    if (currentTheme) {
-        document.documentElement.setAttribute('data-theme', currentTheme);
-        if (currentTheme === 'dark') {
-            toggleSwitch.checked = true;
-        }
-    }
+// Add chat bubble emoji to heading
+const chatBubble = document.createElement('span');
+chatBubble.textContent = '💬';
+chatBubble.style.marginRight = '10px';
+heading.insertBefore(chatBubble, heading.firstChild);
 
-    // Function to switch theme
-    function switchTheme(e) {
-        if (e.target.checked) {
-            document.documentElement.setAttribute('data-theme', 'dark');
-            localStorage.setItem('theme', 'dark');
-        } else {
-            document.documentElement.setAttribute('data-theme', 'light');
-            localStorage.setItem('theme', 'light');
-        }
-    }
+// Add ripple effect to button
+sendButton.addEventListener('click', function(e) {
+    const ripple = document.createElement('span');
+    ripple.classList.add('ripple');
+    this.appendChild(ripple);
 
-    // Add event listener for theme switch
-    toggleSwitch.addEventListener('change', switchTheme);
+    const rect = this.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
+
+    ripple.style.width = ripple.style.height = `${size}px`;
+    ripple.style.left = `${x}px`;
+    ripple.style.top = `${y}px`;
+
+    ripple.addEventListener('animationend', () => {
+        ripple.remove();
+    });
 });
 
+// Function to format time
+const formatTime = () => {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+};
+
 // Function to append messages to the chat container
-const appendMessage = (message, position, messageId) => {
+const appendMessage = (message, position) => {
     const messageElement = document.createElement('div');
-    const timestamp = new Date().toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true // This will show time in 12-hour format with AM/PM
-    });
-    
-    messageElement.innerHTML = `
-        <div class="message-container">
-            <div class="message-content">${message}</div>
-            <div class="message-info">
-                <span class="message-timestamp">${timestamp}</span>
-            </div>
-            <div class="message-hover-actions">
-                <button class="hover-btn like-btn" title="Like">
-                    <span class="like-icon">❤️</span>
-                    <span class="like-count">0</span>
-                </button>
-                ${position === 'right' ? `
-                    <button class="hover-btn unsend-btn" title="Unsend">
-                        <span class="unsend-icon">🗑️</span>
-                    </button>
-                ` : ''}
-            </div>
-        </div>
-    `;
-    
     messageElement.classList.add('message', position);
-    messageElement.dataset.messageId = messageId;
+
+    // Create message content container
+    const messageContent = document.createElement('div');
+    messageContent.classList.add('message-content');
+    messageContent.innerText = message;
+
+    // Create message info container for timestamp
+    const messageInfo = document.createElement('div');
+    messageInfo.classList.add('message-info');
+    
+    const timestamp = document.createElement('span');
+    timestamp.classList.add('message-timestamp');
+    timestamp.innerText = formatTime();
+    
+    messageInfo.appendChild(timestamp);
+    
+    // Append content and info to message element
+    messageElement.appendChild(messageContent);
+    messageElement.appendChild(messageInfo);
+    
     messageContainer.append(messageElement);
 
-    // Add event listeners
-    const likeBtn = messageElement.querySelector('.like-btn');
-    const unsendBtn = messageElement.querySelector('.unsend-btn');
-
-    likeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleLike(messageId, likeBtn);
-    });
-
-    if (unsendBtn) {
-        unsendBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            unsendMessage(messageId, messageElement);
-        });
-    }
-
-    // Scroll to bottom
+    // Scroll to the bottom of the chat container
     messageContainer.scrollTop = messageContainer.scrollHeight;
 
+    // Play notification sound for incoming messages
     if (position === 'left') {
         audio.play();
     }
 };
 
-// Function to handle likes
-const toggleLike = (messageId, likeBtn) => {
-    const likeIcon = likeBtn.querySelector('.like-icon');
-    const likeCount = likeBtn.querySelector('.like-count');
-    const currentCount = parseInt(likeCount.textContent);
-    
-    if (likeBtn.classList.contains('liked')) {
-        likeBtn.classList.remove('liked');
-        likeIcon.textContent = '❤️';
-        likeCount.textContent = currentCount - 1;
-        socket.emit('unlike-message', messageId);
-    } else {
-        likeBtn.classList.add('liked');
-        likeIcon.textContent = '❤️'; // Filled heart
-        likeCount.textContent = currentCount + 1;
-        socket.emit('like-message', messageId);
-    }
-};
-
-// Function to handle unsend
-const unsendMessage = (messageId, messageElement) => {
-    if (confirm('Are you sure you want to unsend this message?')) {
-        socket.emit('unsend-message', messageId);
-        messageElement.remove();
-    }
-};
-
-// Handle form submission with message ID
+// Handle form submission
 form.addEventListener('submit', (e) => {
     e.preventDefault();
     const message = messageInput.value.trim();
 
     if (message) {
-        const messageId = Date.now().toString(); // Generate unique ID
-        appendMessage(`You: ${message}`, 'right', messageId);
-        socket.emit('send', { message, messageId });
-        messageInput.value = '';
-    }
-});
-
-// Add socket listeners for likes and unsend
-socket.on('message-liked', (data) => {
-    const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
-    if (messageElement) {
-        const likeBtn = messageElement.querySelector('.like-btn');
-        const likeCount = likeBtn.querySelector('.like-count');
-        likeCount.textContent = data.likes;
-    }
-});
-
-socket.on('message-unliked', (data) => {
-    const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
-    if (messageElement) {
-        const likeBtn = messageElement.querySelector('.like-btn');
-        const likeCount = likeBtn.querySelector('.like-count');
-        likeCount.textContent = data.likes;
-    }
-});
-
-socket.on('message-unsent', (messageId) => {
-    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
-    if (messageElement) {
-        messageElement.remove();
+        // Trigger paper plane animation
+        const sendButton = document.querySelector('.btn');
+        sendButton.classList.add('sending');
+        
+        // Add a small delay to show the animation
+        setTimeout(() => {
+            appendMessage(`You: ${message}`, 'right'); // Display user's message
+            socket.emit('send', message); // Send message to the server
+            messageInput.value = ''; // Clear input field
+            sendButton.classList.remove('sending');
+        }, 300);
     }
 });
 
@@ -191,7 +124,7 @@ socket.on('user-joined', (name) => {
 
 // When a message is received
 socket.on('receive', (data) => {
-    appendMessage(`${data.name}: ${data.message}`, 'left', data.messageId);
+    appendMessage(`${data.name}: ${data.message}`, 'left');
 });
 
 // When a user leaves
@@ -210,8 +143,30 @@ socket.on('disconnect', () => {
     appendMessage('You have been disconnected from the chat.', 'error');
 });
 
-// this is for fun when someone copy text from web page then it will paste this emoji
-document.addEventListener('copy', function(e) {
-    e.clipboardData.setData('text/plain', '🖕'); // write what you want to paste, when someone copy text from web page
-    e.preventDefault();
+
+document.addEventListener('DOMContentLoaded', () => {
+    const themeSwitch = document.getElementById('checkbox');
+    
+    // Function to toggle theme
+    const toggleTheme = () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        
+        // Save theme preference to localStorage
+        localStorage.setItem('theme', newTheme);
+    };
+    
+    // Event listener for theme switch
+    themeSwitch.addEventListener('change', toggleTheme);
+    
+    // Load saved theme preference
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        themeSwitch.checked = savedTheme === 'dark';
+    } else {
+        // Default to light theme if no preference is saved
+        document.documentElement.setAttribute('data-theme', 'light');
+    }
 });
