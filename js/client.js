@@ -1,5 +1,5 @@
 // Initialize Socket.IO connection
-const socket = io('http://localhost:8000');
+const socket = io('https://chat-app-7e73.onrender.com');
 
 // DOM Elements
 const form = document.getElementById('send-container');
