@@ -10,4 +10,4 @@ A real-time chat application built with Socket.IO and Node.js.
 - Responsive design
 
 ## Live Demo
-Visit: https://yourusername.github.io/your-repo-name/ 
+Visit: https://chat-app-7e73.onrender.com/
