@@ -2,12 +2,12 @@ const express = require('express');
 const path = require('path');
 const app = express();
 
-// Serve static files (HTML, CSS, JS)
-app.use(express.static(path.join(__dirname, '.')));
+// Serve static files (HTML, CSS, JS, audio) from the parent directory
+app.use(express.static(path.join(__dirname, '..')));
 
 // Serve index.html for the root route
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
 // Start the server
@@ -17,7 +17,7 @@ const server = app.listen(process.env.PORT || 8000, () => {
 
 // Attach Socket.IO to the server
 const io = require('socket.io')(server, {
-    cors: { origin: 'https://chat-app-7e73.onrender.com' }
+    cors: { origin: '*' }
 });
 
 const users = {}; // Store active users
