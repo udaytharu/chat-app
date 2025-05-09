@@ -17,7 +17,7 @@ const server = app.listen(process.env.PORT || 8000, () => {
 
 // Attach Socket.IO to the server
 const io = require('socket.io')(server, {
-    cors: { origin: '*' }
+    cors: { origin: 'https://chat-app-7e73.onrender.com' }
 });
 
 const users = {}; // Store active users
