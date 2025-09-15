@@ -278,9 +278,8 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 [![GitHub stars](https://img.shields.io/github/stars/udaytharu813/chat-app?style=social)](https://github.com/udaytharu813/chat-app/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/udaytharu813/chat-app?style=social)](https://github.com/udaytharu813/chat-app/network/members)
-[![GitHub watchers](https://img.shields.io/github/watchers/udaytharu/chat-app?style=social)](https://github.com/udaytharu/chat-app/watchers)
+[![GitHub watchers](https://img.shields.io/github/watchers/udaytharu813/chat-app?style=social)](https://github.com/udaytharu813/chat-app/watchers)
 
 **Made with ❤️ by [Uday Raj Chaudhary](https://www.udayrajchaudhary.com.np/)**
-
 
 </div>

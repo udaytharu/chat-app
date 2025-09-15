@@ -1,5 +1,10 @@
-// Initialize Socket.IO connection
-const socket = io('http://localhost:8000');
+// Initialize Socket.IO connection with automatic URL detection
+// This works for both local development and Render deployment
+const socket = io(window.location.origin, {
+    transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
+    upgrade: true,
+    rememberUpgrade: true
+});
 
 // Authentication variables
 let currentUser = null;
@@ -21,6 +26,11 @@ const showLoginLink = document.getElementById('showLogin');
 const authError = document.getElementById('authError');
 const authTitle = document.getElementById('authTitle');
 const authSubtitle = document.getElementById('authSubtitle');
+
+// Connection Status Elements
+const connectionStatus = document.getElementById('connectionStatus');
+const statusDot = connectionStatus.querySelector('.status-dot');
+const statusText = connectionStatus.querySelector('.status-text');
 
 // Password toggle elements
 const loginPasswordToggle = document.getElementById('loginPasswordToggle');
@@ -83,9 +93,12 @@ const formatTimeFromDate = (dateString) => {
 };
 
 // Function to append messages to the chat container
-const appendMessage = (message, position, timestamp = null) => {
+const appendMessage = (message, position, timestamp = null, messageId = null) => {
     const messageElement = document.createElement('div');
     messageElement.classList.add('message', position);
+    if (messageId) {
+        messageElement.setAttribute('data-message-id', messageId);
+    }
 
     // Create message content container
     const messageContent = document.createElement('div');
@@ -102,9 +115,39 @@ const appendMessage = (message, position, timestamp = null) => {
     
     messageInfo.appendChild(timestampElement);
     
-    // Append content and info to message element
+    // Create message actions container
+    const messageActions = document.createElement('div');
+    messageActions.classList.add('message-actions');
+    
+    // Add action buttons
+    const reactBtn = document.createElement('button');
+    reactBtn.classList.add('message-action-btn', 'react-btn');
+    reactBtn.innerHTML = '<i class="fas fa-smile"></i>';
+    reactBtn.addEventListener('click', () => showReactionMenu(messageElement));
+    
+    const editBtn = document.createElement('button');
+    editBtn.classList.add('message-action-btn', 'edit-btn');
+    editBtn.innerHTML = '<i class="fas fa-edit"></i>';
+    editBtn.addEventListener('click', () => editMessage(messageElement));
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.classList.add('message-action-btn', 'delete-btn');
+    deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+    deleteBtn.addEventListener('click', () => deleteMessage(messageElement));
+    
+    // Only show edit and delete for own messages
+    if (position === 'right' && currentUser) {
+        messageActions.appendChild(reactBtn);
+        messageActions.appendChild(editBtn);
+        messageActions.appendChild(deleteBtn);
+    } else {
+        messageActions.appendChild(reactBtn);
+    }
+    
+    // Append content, info, and actions to message element
     messageElement.appendChild(messageContent);
     messageElement.appendChild(messageInfo);
+    messageElement.appendChild(messageActions);
     
     messageContainer.append(messageElement);
 
@@ -114,6 +157,194 @@ const appendMessage = (message, position, timestamp = null) => {
     // Play notification sound for incoming messages
     if (position === 'left') {
         audio.play();
+    }
+};
+
+// Message action functions
+const showReactionMenu = (messageElement) => {
+    const reactions = ['😀', '😂', '😍', '👍', '👎', '❤️', '🔥', '🎉'];
+    
+    // Remove existing reaction menu if any
+    const existingMenu = document.querySelector('.reaction-menu');
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+    
+    const reactionMenu = document.createElement('div');
+    reactionMenu.classList.add('reaction-menu');
+    reactionMenu.style.cssText = `
+        position: absolute;
+        top: -50px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 8px;
+        display: flex;
+        gap: 8px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        z-index: 1000;
+        animation: fadeInUp 0.3s ease;
+    `;
+    
+    reactions.forEach(reaction => {
+        const reactionBtn = document.createElement('button');
+        reactionBtn.textContent = reaction;
+        reactionBtn.style.cssText = `
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            padding: 8px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        `;
+        
+        reactionBtn.addEventListener('click', () => {
+            addReaction(messageElement, reaction);
+            reactionMenu.remove();
+        });
+        
+        reactionBtn.addEventListener('mouseenter', () => {
+            reactionBtn.style.transform = 'scale(1.2)';
+            reactionBtn.style.background = 'rgba(0, 0, 0, 0.1)';
+        });
+        
+        reactionBtn.addEventListener('mouseleave', () => {
+            reactionBtn.style.transform = 'scale(1)';
+            reactionBtn.style.background = 'none';
+        });
+        
+        reactionMenu.appendChild(reactionBtn);
+    });
+    
+    messageElement.style.position = 'relative';
+    messageElement.appendChild(reactionMenu);
+    
+    // Close menu when clicking outside
+    setTimeout(() => {
+        document.addEventListener('click', function closeMenu(e) {
+            if (!messageElement.contains(e.target)) {
+                reactionMenu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        });
+    }, 100);
+};
+
+const addReaction = (messageElement, reaction) => {
+    const messageContent = messageElement.querySelector('.message-content');
+    const existingReactions = messageElement.querySelector('.message-reactions');
+    
+    if (existingReactions) {
+        const reactionSpan = document.createElement('span');
+        reactionSpan.textContent = reaction;
+        reactionSpan.style.cssText = `
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 1.2rem;
+            animation: reactionPop 0.3s ease;
+        `;
+        existingReactions.appendChild(reactionSpan);
+    } else {
+        const reactionsContainer = document.createElement('div');
+        reactionsContainer.classList.add('message-reactions');
+        reactionsContainer.style.cssText = `
+            margin-top: 8px;
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        `;
+        
+        const reactionSpan = document.createElement('span');
+        reactionSpan.textContent = reaction;
+        reactionSpan.style.cssText = `
+            display: inline-block;
+            font-size: 1.2rem;
+            animation: reactionPop 0.3s ease;
+        `;
+        
+        reactionsContainer.appendChild(reactionSpan);
+        messageElement.appendChild(reactionsContainer);
+    }
+    
+    // Emit reaction to server
+    const messageId = messageElement.getAttribute('data-message-id');
+    if (messageId) {
+        socket.emit('add-reaction', { messageId, reaction });
+    }
+};
+
+const editMessage = (messageElement) => {
+    const messageContent = messageElement.querySelector('.message-content');
+    const originalText = messageContent.textContent;
+    
+    // Create input field
+    const editInput = document.createElement('input');
+    editInput.type = 'text';
+    editInput.value = originalText;
+    editInput.style.cssText = `
+        width: 100%;
+        padding: 8px 12px;
+        border: 2px solid var(--color-blue-300);
+        border-radius: 8px;
+        background: var(--input-bg);
+        color: var(--text-color);
+        font-size: 1rem;
+        outline: none;
+    `;
+    
+    // Replace content with input
+    messageContent.innerHTML = '';
+    messageContent.appendChild(editInput);
+    editInput.focus();
+    editInput.select();
+    
+    const saveEdit = () => {
+        const newText = editInput.value.trim();
+        if (newText && newText !== originalText) {
+            messageContent.textContent = newText;
+            
+            // Emit edit to server
+            const messageId = messageElement.getAttribute('data-message-id');
+            if (messageId) {
+                socket.emit('edit-message', { messageId, newText });
+            }
+        } else {
+            messageContent.textContent = originalText;
+        }
+    };
+    
+    const cancelEdit = () => {
+        messageContent.textContent = originalText;
+    };
+    
+    editInput.addEventListener('blur', saveEdit);
+    editInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            saveEdit();
+        } else if (e.key === 'Escape') {
+            cancelEdit();
+        }
+    });
+};
+
+const deleteMessage = (messageElement) => {
+    if (confirm('Are you sure you want to delete this message?')) {
+        // Add deletion animation
+        messageElement.style.animation = 'messageDelete 0.3s ease forwards';
+        
+        setTimeout(() => {
+            messageElement.remove();
+            
+            // Emit deletion to server
+            const messageId = messageElement.getAttribute('data-message-id');
+            if (messageId) {
+                socket.emit('delete-message', { messageId });
+            }
+        }, 300);
     }
 };
 
@@ -130,8 +361,9 @@ form.addEventListener('submit', (e) => {
         // Add a small delay to show the animation
         setTimeout(() => {
             if (currentUser) {
-                appendMessage(`${currentUser.name}: ${message}`, 'right'); // Display user's message
-                socket.emit('send', message); // Send message to the server
+                const messageId = Date.now().toString(); // Simple ID generation
+                appendMessage(`${currentUser.name}: ${message}`, 'right', null, messageId); // Display user's message
+                socket.emit('send', { message, messageId }); // Send message to the server
                 messageInput.value = ''; // Clear input field
                 sendButton.classList.remove('sending');
             }
@@ -206,6 +438,23 @@ const authenticateUser = async (token) => {
     authToken = token;
     localStorage.setItem('authToken', token);
     socket.emit('authenticate-and-join', token);
+};
+
+// Connection Status Functions
+const updateConnectionStatus = (status, text) => {
+    statusDot.className = `status-dot ${status}`;
+    statusText.textContent = text;
+    
+    if (status === 'connected') {
+        connectionStatus.style.background = 'rgba(76, 175, 80, 0.1)';
+        connectionStatus.style.borderColor = 'rgba(76, 175, 80, 0.3)';
+    } else if (status === 'disconnected') {
+        connectionStatus.style.background = 'rgba(244, 67, 54, 0.1)';
+        connectionStatus.style.borderColor = 'rgba(244, 67, 54, 0.3)';
+    } else {
+        connectionStatus.style.background = 'rgba(255, 152, 0, 0.1)';
+        connectionStatus.style.borderColor = 'rgba(255, 152, 0, 0.3)';
+    }
 };
 
 // Password Toggle Functions
@@ -352,29 +601,16 @@ registerForm.addEventListener('submit', async (e) => {
 
 // Check for existing authentication on page load
 document.addEventListener('DOMContentLoaded', () => {
-    const savedToken = localStorage.getItem('authToken');
-    if (savedToken) {
-        // Verify token with server
-        fetch('/api/verify', {
-            headers: {
-                'Authorization': `Bearer ${savedToken}`
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.user) {
-                currentUser = data.user;
-                authToken = savedToken;
-                hideAuthModal();
-                authenticateUser(savedToken);
-            } else {
+    // Always show auth modal first - remove auto-login
+    // Clear any existing tokens to force fresh login
                 localStorage.removeItem('authToken');
-            }
-        })
-        .catch(() => {
-            localStorage.removeItem('authToken');
-        });
-    }
+    authToken = null;
+    currentUser = null;
+    
+    // Show auth modal
+    authModal.classList.remove('hidden');
+    document.querySelector('.container').style.display = 'none';
+    document.querySelector('#send-container').style.display = 'none';
 });
 
 // Socket.IO Event Listeners
@@ -399,7 +635,7 @@ socket.on('chat-history', (messages) => {
     // Display historical messages
     messages.forEach(msg => {
         const isOwnMessage = currentUser && msg.name === currentUser.name;
-        appendMessage(`${msg.name}: ${msg.message}`, isOwnMessage ? 'right' : 'left', msg.timestamp);
+        appendMessage(`${msg.name}: ${msg.message}`, isOwnMessage ? 'right' : 'left', msg.timestamp, msg.messageId);
     });
 });
 
@@ -410,7 +646,35 @@ socket.on('user-joined', (name) => {
 
 // When a message is received
 socket.on('receive', (data) => {
-    appendMessage(`${data.name}: ${data.message}`, 'left');
+    appendMessage(`${data.name}: ${data.message}`, 'left', data.timestamp, data.messageId);
+});
+
+// Handle message reactions
+socket.on('reaction-added', (data) => {
+    const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+    if (messageElement) {
+        addReaction(messageElement, data.reaction);
+    }
+});
+
+// Handle message edits
+socket.on('message-edited', (data) => {
+    const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+    if (messageElement) {
+        const messageContent = messageElement.querySelector('.message-content');
+        messageContent.textContent = `${data.name}: ${data.newText}`;
+    }
+});
+
+// Handle message deletions
+socket.on('message-deleted', (data) => {
+    const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
+    if (messageElement) {
+        messageElement.style.animation = 'messageDelete 0.3s ease forwards';
+        setTimeout(() => {
+            messageElement.remove();
+        }, 300);
+    }
 });
 
 // When a user leaves
@@ -421,17 +685,60 @@ socket.on('left', (name) => {
 // Handle connection errors
 socket.on('connect_error', (error) => {
     console.error('Connection error:', error);
-    appendMessage('Unable to connect to the chat server. Please try again later.', 'error');
+    updateConnectionStatus('disconnected', 'Connection Error');
+    showError('Unable to connect to the chat server. Please check your internet connection and try again.');
+});
+
+// Handle reconnection attempts
+socket.on('reconnect_attempt', (attemptNumber) => {
+    console.log(`Reconnection attempt ${attemptNumber}`);
+    updateConnectionStatus('connecting', `Reconnecting... (${attemptNumber})`);
+});
+
+// Handle reconnection success
+socket.on('reconnect', (attemptNumber) => {
+    console.log(`Reconnected after ${attemptNumber} attempts`);
+    updateConnectionStatus('connected', 'Connected');
+    // Re-authenticate if we have a token
+    if (authToken) {
+        authenticateUser(authToken);
+    }
+});
+
+// Handle successful connection
+socket.on('connect', () => {
+    console.log('Connected to server:', socket.id);
+    updateConnectionStatus('connected', 'Connected');
 });
 
 // Handle disconnection
-socket.on('disconnect', () => {
-    appendMessage('You have been disconnected from the chat.', 'error');
+socket.on('disconnect', (reason) => {
+    console.log('Disconnected from server:', reason);
+    updateConnectionStatus('disconnected', 'Disconnected');
+    
+    if (reason === 'io server disconnect') {
+        showError('Server disconnected. Please refresh the page.');
+    } else if (reason === 'io client disconnect') {
+        showError('Connection lost. Please check your internet connection.');
+    }    appendMessage('You have been disconnected from the chat.', 'error');
 });
 
 
 document.addEventListener('DOMContentLoaded', () => {
     const themeSwitch = document.getElementById('checkbox');
+    const lightLabel = document.getElementById('lightLabel');
+    const darkLabel = document.getElementById('darkLabel');
+    
+    // Function to update theme labels
+    const updateThemeLabels = (isDark) => {
+        if (isDark) {
+            lightLabel.classList.remove('active');
+            darkLabel.classList.add('active');
+        } else {
+            lightLabel.classList.add('active');
+            darkLabel.classList.remove('active');
+        }
+    };
     
     // Function to toggle theme
     const toggleTheme = () => {
@@ -439,8 +746,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', newTheme);
         
+        // Update labels
+        updateThemeLabels(newTheme === 'dark');
+        
         // Save theme preference to localStorage
         localStorage.setItem('theme', newTheme);
+        
+        // Add a subtle animation effect
+        document.body.style.transition = 'all 0.3s ease';
+        setTimeout(() => {
+            document.body.style.transition = '';
+        }, 300);
     };
     
     // Event listener for theme switch
@@ -451,8 +767,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedTheme) {
         document.documentElement.setAttribute('data-theme', savedTheme);
         themeSwitch.checked = savedTheme === 'dark';
+        updateThemeLabels(savedTheme === 'dark');
     } else {
         // Default to light theme if no preference is saved
         document.documentElement.setAttribute('data-theme', 'light');
+        updateThemeLabels(false);
     }
 });

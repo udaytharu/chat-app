@@ -70,8 +70,14 @@ const User = mongoose.model('User', userSchema);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// JWT Secret (in production, use environment variable)
-const JWT_SECRET = 'your-secret-key-change-in-production';
+// JWT Secret (use environment variable in production)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+// Production optimizations
+if (process.env.NODE_ENV === 'production') {
+    console.log('🔒 Running in production mode');
+    // Add production-specific configurations here
+}
 
 // Authentication middleware
 const authenticateToken = (req, res, next) => {
@@ -241,13 +247,22 @@ app.get('/', (req, res) => {
 });
 
 // Start the server
-const server = app.listen(process.env.PORT || 8000, () => {
-    console.log('Server is running on port', process.env.PORT || 8000);
+const PORT = process.env.PORT || 8000;
+const server = app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
 
 // Attach Socket.IO to the server
 const io = require('socket.io')(server, {
-    cors: { origin: '*' }
+    cors: { 
+        origin: "*",
+        methods: ["GET", "POST"],
+        credentials: true
+    },
+    allowEIO3: true, // Allow Engine.IO v3 clients
+    transports: ['websocket', 'polling']
 });
 
 const users = {}; // Store active users
@@ -265,6 +280,23 @@ io.on('connection', (socket) => {
             const { userId, name, email } = decoded;
             
             console.log(`Authenticated user joined: ${name} (${email})`);
+            
+            // Check if user is already connected with a different socket
+            const existingSocketId = Array.from(authenticatedUsers.entries())
+                .find(([_, userInfo]) => userInfo.userId === userId)?.[0];
+            
+            if (existingSocketId && existingSocketId !== socket.id) {
+                // Disconnect the previous socket for this user
+                const existingSocket = io.sockets.sockets.get(existingSocketId);
+                if (existingSocket) {
+                    console.log(`Disconnecting previous session for user: ${name}`);
+                    existingSocket.emit('authentication-error', 'Another session started with this account');
+                    existingSocket.disconnect(true);
+                }
+                // Clean up the old session
+                delete users[existingSocketId];
+                authenticatedUsers.delete(existingSocketId);
+            }
             
             // Store user information
             users[socket.id] = name;
@@ -324,9 +356,11 @@ io.on('connection', (socket) => {
     });
 
     // Event: When a user disconnects
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
         const userName = users[socket.id];
         const userInfo = authenticatedUsers.get(socket.id);
+        
+        console.log(`User disconnected: ${userName || 'Unknown'} (${socket.id}), reason: ${reason}`);
         
         if (userName) {
             console.log(`${userName} left the chat`);

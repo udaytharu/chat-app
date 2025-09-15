@@ -2,8 +2,14 @@ services:
   - type: web
     name: chat-server
     env: node
-    buildCommand: npm install
-    startCommand: node index.js
+    region: oregon
+    plan: free
+    buildCommand: cd nodeServer && npm install
+    startCommand: cd nodeServer && node index.js
+    healthCheckPath: /api/health
+    autoDeploy: true
     envVars:
       - key: PORT
-        value: 8000 
+        value: 8000
+      - key: NODE_ENV
+        value: production 

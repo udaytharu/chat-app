@@ -14,27 +14,29 @@
 </head>
 <body>
     <nav>
-        <div class="logo-container">
-            <div class="chat-logo glass">
-                <div class="chat-bubble main-bubble">
-                    <span class="dots">
-                        <span class="dot"></span>
-                        <span class="dot"></span>
-                        <span class="dot"></span>
-                    </span>
-                </div>
-            </div>
-        </div>
         <h1>CHAT WITH UDAY</h1>
     </nav>
-    <div class="theme-switch-wrapper">
-        <label class="theme-switch" for="checkbox">
-            <input type="checkbox" id="checkbox" />
-            <div class="slider round">
-                <span class="sun"></span>
-                <span class="moon"></span>
-            </div>
-        </label>
+    
+    <!-- Status and Theme Controls -->
+    <div class="controls-container">
+        <!-- Connection Status Indicator -->
+        <div id="connectionStatus" class="connection-status">
+            <span class="status-dot"></span>
+            <span class="status-text">Connecting...</span>
+        </div>
+        
+        <!-- Theme Toggle -->
+        <div class="theme-switch-wrapper">
+            <span class="theme-label" id="lightLabel">Light</span>
+            <label class="theme-switch" for="checkbox">
+                <input type="checkbox" id="checkbox" />
+                <div class="slider round">
+                    <span class="sun"></span>
+                    <span class="moon"></span>
+                </div>
+            </label>
+            <span class="theme-label" id="darkLabel">Dark</span>
+        </div>
     </div>
 
     <!-- Authentication Modal -->
@@ -104,10 +106,9 @@
         </div>
     </div>
     <div class="container">
-        <!-- <div class="message right">uday:hello</div>
-        <div class="message left">ram:hi</div> -->
+        <!-- Messages will be dynamically added here -->
     </div>
-    <div class="send">
+    <div class="<i class="fa-solid fa-paper-plane"></i>">
         <form action="#" id="send-container">
             <input type="text" name="messageInp" id="messageInp" placeholder="write your message here">
             <button class="btn" type="submit">Send</button>
@@ -118,7 +119,7 @@
         <div class="footer-content">
             <div class="footer-text">
                 Created by
-                <a href="https://www.udayrajchaudhary.com.np/">uday-studio</a>
+                <a href="https://www.udayrajchaudhary.com.np/" style="color: #1e88e5;">uday-studio</a>
                 <span class="copyright">© 2024</span>
             </div>
             <div class="social-links">
