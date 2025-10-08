@@ -23,6 +23,16 @@ mongoose.connect(MONGODB_URI)
 
 // Message Schema
 const messageSchema = new mongoose.Schema({
+    messageId: {
+        type: String,
+        required: true,
+        unique: true,
+        index: true
+    },
+    userId: {
+        type: String,
+        required: true
+    },
     name: {
         type: String,
         required: true
@@ -30,6 +40,17 @@ const messageSchema = new mongoose.Schema({
     message: {
         type: String,
         required: true
+    },
+    reactions: [
+        {
+            emoji: { type: String, required: true },
+            by: { type: String, required: true }, // userId of reactor
+            at: { type: Date, default: Date.now }
+        }
+    ],
+    editedAt: {
+        type: Date,
+        default: null
     },
     timestamp: {
         type: Date,
@@ -309,7 +330,18 @@ io.on('connection', (socket) => {
             // Load chat history for the authenticated user
             try {
                 const messages = await Message.find().sort({ timestamp: 1 }).limit(50);
-                socket.emit('chat-history', messages);
+                // Ensure every message has a messageId in the payload
+                const normalized = messages.map(m => ({
+                    _id: m._id,
+                    messageId: m.messageId || m._id.toString(),
+                    userId: m.userId,
+                    name: m.name,
+                    message: m.message,
+                    reactions: m.reactions || [],
+                    editedAt: m.editedAt || null,
+                    timestamp: m.timestamp
+                }));
+                socket.emit('chat-history', normalized);
             } catch (error) {
                 console.error('Error loading chat history:', error);
             }
@@ -321,8 +353,9 @@ io.on('connection', (socket) => {
     });
 
     // Event: When a user sends a message
-    socket.on('send', async (message) => {
-        if (!message) {
+    socket.on('send', async (payload) => {
+        // payload: { message, messageId }
+        if (!payload || !payload.message) {
             socket.emit('error', 'Message cannot be empty.');
             return;
         }
@@ -331,12 +364,22 @@ io.on('connection', (socket) => {
             socket.emit('error', 'You are not registered in the chat.');
             return;
         }
+        const authInfo = authenticatedUsers.get(socket.id);
+        if (!authInfo) {
+            socket.emit('error', 'Authentication required.');
+            return;
+        }
         
+        const { message, messageId } = payload;
         console.log(`Message from ${senderName}: ${message}`);
         
         // Save message to MongoDB
         try {
+            const generatedId = new mongoose.Types.ObjectId().toString();
+            const finalMessageId = messageId || generatedId;
             const newMessage = new Message({
+                messageId: finalMessageId,
+                userId: authInfo.userId,
                 name: senderName,
                 message: message,
                 timestamp: new Date()
@@ -348,11 +391,73 @@ io.on('connection', (socket) => {
         }
         
         // Broadcast message to all other clients
+        const outId = messageId || (typeof generatedId !== 'undefined' ? generatedId : undefined);
         socket.broadcast.emit('receive', {
             message,
             name: senderName,
-            timestamp: new Date().toLocaleTimeString()
+            timestamp: new Date().toISOString(),
+            messageId: outId
         });
+    });
+
+    // Event: Add reaction to a message (prevent duplicates from same user)
+    socket.on('add-reaction', async ({ messageId, reaction }) => {
+        try {
+            const authInfo = authenticatedUsers.get(socket.id);
+            if (!authInfo) return;
+            const msg = await Message.findOne({ messageId });
+            if (!msg) return;
+
+            // If the same user already added the same reaction, ignore
+            const alreadyReacted = (msg.reactions || []).some(r => r.by === authInfo.userId && r.emoji === reaction);
+            if (alreadyReacted) {
+                return; // prevent duplicate flood
+            }
+
+            msg.reactions.push({ emoji: reaction, by: authInfo.userId });
+            await msg.save();
+            io.emit('reaction-added', { messageId, reaction, by: authInfo.userId });
+        } catch (error) {
+            console.error('Error adding reaction:', error);
+        }
+    });
+
+    // Event: Edit a message (only owner)
+    socket.on('edit-message', async ({ messageId, newText }) => {
+        try {
+            const authInfo = authenticatedUsers.get(socket.id);
+            if (!authInfo) return;
+            const msg = await Message.findOne({ messageId });
+            if (!msg) return;
+            if (msg.userId !== authInfo.userId) {
+                socket.emit('error', 'You can only edit your own messages.');
+                return;
+            }
+            msg.message = newText;
+            msg.editedAt = new Date();
+            await msg.save();
+            io.emit('message-edited', { messageId, newText, name: msg.name, editedAt: msg.editedAt });
+        } catch (error) {
+            console.error('Error editing message:', error);
+        }
+    });
+
+    // Event: Delete a message (only owner)
+    socket.on('delete-message', async ({ messageId }) => {
+        try {
+            const authInfo = authenticatedUsers.get(socket.id);
+            if (!authInfo) return;
+            const msg = await Message.findOne({ messageId });
+            if (!msg) return;
+            if (msg.userId !== authInfo.userId) {
+                socket.emit('error', 'You can only delete your own messages.');
+                return;
+            }
+            await Message.deleteOne({ messageId });
+            io.emit('message-deleted', { messageId });
+        } catch (error) {
+            console.error('Error deleting message:', error);
+        }
     });
 
     // Event: When a user disconnects
