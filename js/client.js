@@ -203,6 +203,14 @@ const showReactionMenu = (messageElement) => {
         `;
         
         reactionBtn.addEventListener('click', () => {
+            // Simple per-message cooldown (500ms) to avoid rapid-fire emits
+            const cooldownKey = `react-cooldown-${messageElement.getAttribute('data-message-id')}`;
+            const now = Date.now();
+            const last = parseInt(messageElement.getAttribute(cooldownKey) || '0', 10);
+            if (now - last < 500) {
+                return; // ignore rapid repeat clicks
+            }
+            messageElement.setAttribute(cooldownKey, String(now));
             addReaction(messageElement, reaction);
             reactionMenu.remove();
         });
@@ -234,10 +242,20 @@ const showReactionMenu = (messageElement) => {
     }, 100);
 };
 
-const addReaction = (messageElement, reaction) => {
+const addReaction = (messageElement, reaction, shouldEmit = true) => {
+    // When initiated locally, only emit to server and let the single
+    // server broadcast update the UI to avoid duplicate additions.
+    if (shouldEmit) {
+        const messageId = messageElement.getAttribute('data-message-id');
+        if (messageId) {
+            socket.emit('add-reaction', { messageId, reaction });
+        }
+        return;
+    }
+
     const messageContent = messageElement.querySelector('.message-content');
     const existingReactions = messageElement.querySelector('.message-reactions');
-    
+
     if (existingReactions) {
         const reactionSpan = document.createElement('span');
         reactionSpan.textContent = reaction;
@@ -257,7 +275,7 @@ const addReaction = (messageElement, reaction) => {
             gap: 4px;
             flex-wrap: wrap;
         `;
-        
+
         const reactionSpan = document.createElement('span');
         reactionSpan.textContent = reaction;
         reactionSpan.style.cssText = `
@@ -265,15 +283,9 @@ const addReaction = (messageElement, reaction) => {
             font-size: 1.2rem;
             animation: reactionPop 0.3s ease;
         `;
-        
+
         reactionsContainer.appendChild(reactionSpan);
         messageElement.appendChild(reactionsContainer);
-    }
-    
-    // Emit reaction to server
-    const messageId = messageElement.getAttribute('data-message-id');
-    if (messageId) {
-        socket.emit('add-reaction', { messageId, reaction });
     }
 };
 
@@ -305,7 +317,11 @@ const editMessage = (messageElement) => {
     const saveEdit = () => {
         const newText = editInput.value.trim();
         if (newText && newText !== originalText) {
-            messageContent.textContent = newText;
+            if (currentUser && currentUser.name) {
+                messageContent.textContent = `${currentUser.name}: ${newText}`;
+            } else {
+                messageContent.textContent = newText;
+            }
             
             // Emit edit to server
             const messageId = messageElement.getAttribute('data-message-id');
@@ -635,7 +651,8 @@ socket.on('chat-history', (messages) => {
     // Display historical messages
     messages.forEach(msg => {
         const isOwnMessage = currentUser && msg.name === currentUser.name;
-        appendMessage(`${msg.name}: ${msg.message}`, isOwnMessage ? 'right' : 'left', msg.timestamp, msg.messageId);
+        const id = msg.messageId || msg._id;
+        appendMessage(`${msg.name}: ${msg.message}`, isOwnMessage ? 'right' : 'left', msg.timestamp, id);
     });
 });
 
@@ -653,7 +670,8 @@ socket.on('receive', (data) => {
 socket.on('reaction-added', (data) => {
     const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
     if (messageElement) {
-        addReaction(messageElement, data.reaction);
+        // Apply reaction without emitting back to server to prevent loops
+        addReaction(messageElement, data.reaction, false);
     }
 });
 
