@@ -34,7 +34,7 @@
 - **Join/Leave Notifications** when users enter/exit
 
 ### 🎨 **Modern UI/UX**
-- **Dark/Light Theme Toggle** with smooth transitions
+- **Dark Theme ** with smooth transitions
 - **Responsive Design** - works on all devices
 - **Beautiful Animations** and hover effects
 - **Glass Morphism** design elements
@@ -281,5 +281,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 [![GitHub watchers](https://img.shields.io/github/watchers/udaytharu813/chat-app?style=social)](https://github.com/udaytharu813/chat-app/watchers)
 
 **Made with ❤️ by [Uday Raj Chaudhary](https://www.udayrajchaudhary.com.np/)**
+
 
 </div>
