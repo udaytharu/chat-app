@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>chat-app - Realtime</title>
+    <script>try{localStorage.setItem('theme','dark');}catch(e){}</script>
     <script defer src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script defer src="./js/client.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,14 +17,6 @@
     <nav>
         <h1>CHAT WITH UDAY</h1>
     </nav>
-    
-    <!-- Status and Theme Controls -->
-    <div class="controls-container">
-        <!-- Connection Status Indicator -->
-        <div id="connectionStatus" class="connection-status">
-            <span class="status-dot"></span>
-            <span class="status-text">Connecting...</span>
-        </div>
         
         <!-- Theme Toggle -->
         <div class="theme-switch-wrapper">
@@ -108,18 +101,16 @@
     <div class="container">
         <!-- Messages will be dynamically added here -->
     </div>
-    <div class="<i class="fa-solid fa-paper-plane"></i>">
-        <form action="#" id="send-container">
-            <input type="text" name="messageInp" id="messageInp" placeholder="write your message here">
-            <button class="btn" type="submit">Send</button>
-        </form>
-    </div>
+    <form action="#" id="send-container">
+        <input type="text" name="messageInp" id="messageInp" placeholder="write your message here">
+        <button class="btn" type="submit">Send</button>
+    </form>
 
     <footer>
         <div class="footer-content">
             <div class="footer-text">
                 Created by
-                <a href="https://www.udayrajchaudhary.com.np/" style="color: #1e88e5;">uday-studio</a>
+                <a href="https://www.udayrajchaudhary.com.np/">uday-studio</a>
                 <span class="copyright">© 2024</span>
             </div>
             <div class="social-links">

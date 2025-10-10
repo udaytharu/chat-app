@@ -27,10 +27,7 @@ const authError = document.getElementById('authError');
 const authTitle = document.getElementById('authTitle');
 const authSubtitle = document.getElementById('authSubtitle');
 
-// Connection Status Elements
-const connectionStatus = document.getElementById('connectionStatus');
-const statusDot = connectionStatus.querySelector('.status-dot');
-const statusText = connectionStatus.querySelector('.status-text');
+
 
 // Password toggle elements
 const loginPasswordToggle = document.getElementById('loginPasswordToggle');
@@ -122,8 +119,9 @@ const appendMessage = (message, position, timestamp = null, messageId = null) =>
     // Add action buttons
     const reactBtn = document.createElement('button');
     reactBtn.classList.add('message-action-btn', 'react-btn');
-    reactBtn.innerHTML = '<i class="fas fa-smile"></i>';
-    reactBtn.addEventListener('click', () => showReactionMenu(messageElement));
+    const HEART_URL = 'https://cdn3.emoji.gg/emojis/minecraftheart.png';
+    reactBtn.innerHTML = '<img src="'+HEART_URL+'" alt="heart" class="reaction-emoji-btn" />';
+    reactBtn.addEventListener('click', () => toggleHeartReaction(messageElement, HEART_URL));
     
     const editBtn = document.createElement('button');
     editBtn.classList.add('message-action-btn', 'edit-btn');
@@ -256,16 +254,29 @@ const addReaction = (messageElement, reaction, shouldEmit = true) => {
     const messageContent = messageElement.querySelector('.message-content');
     const existingReactions = messageElement.querySelector('.message-reactions');
 
-    if (existingReactions) {
-        const reactionSpan = document.createElement('span');
-        reactionSpan.textContent = reaction;
-        reactionSpan.style.cssText = `
+    const createReactionNode = (value) => {
+        const isUrl = typeof value === 'string' && /^https?:\/\//.test(value);
+        if (isUrl) {
+            const img = document.createElement('img');
+            img.src = value;
+            img.alt = 'reaction';
+            img.className = 'reaction-emoji';
+            return img;
+        }
+        const span = document.createElement('span');
+        span.textContent = value;
+        span.style.cssText = `
             display: inline-block;
-            margin-left: 8px;
             font-size: 1.2rem;
-            animation: reactionPop 0.3s ease;
         `;
-        existingReactions.appendChild(reactionSpan);
+        return span;
+    };
+
+    if (existingReactions) {
+        const node = createReactionNode(reaction);
+        node.style.animation = 'reactionPop 0.3s ease';
+        node.style.marginLeft = '8px';
+        existingReactions.appendChild(node);
     } else {
         const reactionsContainer = document.createElement('div');
         reactionsContainer.classList.add('message-reactions');
@@ -276,17 +287,36 @@ const addReaction = (messageElement, reaction, shouldEmit = true) => {
             flex-wrap: wrap;
         `;
 
-        const reactionSpan = document.createElement('span');
-        reactionSpan.textContent = reaction;
-        reactionSpan.style.cssText = `
-            display: inline-block;
-            font-size: 1.2rem;
-            animation: reactionPop 0.3s ease;
-        `;
-
-        reactionsContainer.appendChild(reactionSpan);
+        const node = createReactionNode(reaction);
+        node.style.animation = 'reactionPop 0.3s ease';
+        reactionsContainer.appendChild(node);
         messageElement.appendChild(reactionsContainer);
     }
+};
+
+// Toggle heart reaction: if already reacted by current user, remove; else add
+const toggleHeartReaction = (messageElement, heartUrl) => {
+    const messageId = messageElement.getAttribute('data-message-id');
+    const reactionsContainer = messageElement.querySelector('.message-reactions');
+    // Identify a heart reaction node we can remove (first match is enough for local UX)
+    let heartNode = null;
+    if (reactionsContainer) {
+        heartNode = Array.from(reactionsContainer.querySelectorAll('img.reaction-emoji'))
+            .find(img => img.src === heartUrl);
+    }
+
+    if (heartNode) {
+        // Remove locally and notify server via a generic 'remove-reaction' if available; else resend edit
+        heartNode.remove();
+        if (messageId) {
+            // Best-effort unreact event; if server lacks it, this will be ignored
+            socket.emit('remove-reaction', { messageId, reaction: heartUrl });
+        }
+        return;
+    }
+
+    // No heart present → add it
+    addReaction(messageElement, heartUrl);
 };
 
 const editMessage = (messageElement) => {
@@ -318,7 +348,7 @@ const editMessage = (messageElement) => {
         const newText = editInput.value.trim();
         if (newText && newText !== originalText) {
             if (currentUser && currentUser.name) {
-                messageContent.textContent = `${currentUser.name}: ${newText}`;
+                messageContent.textContent = `@${currentUser.name}: ${newText}`;
             } else {
                 messageContent.textContent = newText;
             }
@@ -378,7 +408,7 @@ form.addEventListener('submit', (e) => {
         setTimeout(() => {
             if (currentUser) {
                 const messageId = Date.now().toString(); // Simple ID generation
-                appendMessage(`${currentUser.name}: ${message}`, 'right', null, messageId); // Display user's message
+                appendMessage(`@${currentUser.name}: ${message}`, 'right', null, messageId); // Display user's message
                 socket.emit('send', { message, messageId }); // Send message to the server
                 messageInput.value = ''; // Clear input field
                 sendButton.classList.remove('sending');
@@ -456,22 +486,7 @@ const authenticateUser = async (token) => {
     socket.emit('authenticate-and-join', token);
 };
 
-// Connection Status Functions
-const updateConnectionStatus = (status, text) => {
-    statusDot.className = `status-dot ${status}`;
-    statusText.textContent = text;
-    
-    if (status === 'connected') {
-        connectionStatus.style.background = 'rgba(76, 175, 80, 0.1)';
-        connectionStatus.style.borderColor = 'rgba(76, 175, 80, 0.3)';
-    } else if (status === 'disconnected') {
-        connectionStatus.style.background = 'rgba(244, 67, 54, 0.1)';
-        connectionStatus.style.borderColor = 'rgba(244, 67, 54, 0.3)';
-    } else {
-        connectionStatus.style.background = 'rgba(255, 152, 0, 0.1)';
-        connectionStatus.style.borderColor = 'rgba(255, 152, 0, 0.3)';
-    }
-};
+
 
 // Password Toggle Functions
 const togglePasswordVisibility = (input, toggleButton) => {
@@ -652,7 +667,7 @@ socket.on('chat-history', (messages) => {
     messages.forEach(msg => {
         const isOwnMessage = currentUser && msg.name === currentUser.name;
         const id = msg.messageId || msg._id;
-        appendMessage(`${msg.name}: ${msg.message}`, isOwnMessage ? 'right' : 'left', msg.timestamp, id);
+        appendMessage(`@${msg.name}: ${msg.message}`, isOwnMessage ? 'right' : 'left', msg.timestamp, id);
     });
 });
 
@@ -663,7 +678,7 @@ socket.on('user-joined', (name) => {
 
 // When a message is received
 socket.on('receive', (data) => {
-    appendMessage(`${data.name}: ${data.message}`, 'left', data.timestamp, data.messageId);
+    appendMessage(`@${data.name}: ${data.message}`, 'left', data.timestamp, data.messageId);
 });
 
 // Handle message reactions
@@ -680,7 +695,7 @@ socket.on('message-edited', (data) => {
     const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
     if (messageElement) {
         const messageContent = messageElement.querySelector('.message-content');
-        messageContent.textContent = `${data.name}: ${data.newText}`;
+        messageContent.textContent = `@${data.name}: ${data.newText}`;
     }
 });
 
