@@ -3,18 +3,30 @@ const path = require('path');
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const cors = require('cors'); // Added CORS
+const cors = require('cors');
+const http = require('http');
+const socketIo = require('socket.io');
+
 const app = express();
 
-// MongoDB connection - Use environment variable in production
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://udaytharu813_db_user:C3gkHEbI9SwOus7R@clusterchat.p0wyapu.mongodb.net/';
+// Render specific: Use the server's hostname and port
+const server = http.createServer(app);
+const PORT = process.env.PORT || 10000; // Render uses dynamic ports, default 10000
+const HOST = '0.0.0.0'; // Bind to all interfaces
 
-// Connect to MongoDB with better error handling
+// MongoDB connection - Use environment variable in production
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://udaytharu813_db_user:C3gkHEbI9SwOus7R@clusterchat.p0wyapu.mongodb.net/chat-app?retryWrites=true&w=majority';
+
+// Connect to MongoDB with better error handling for Render
 const connectToDatabase = async () => {
     try {
         await mongoose.connect(MONGODB_URI, {
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
+            // Add these options for better stability on Render
+            maxPoolSize: 10,
+            minPoolSize: 2,
+            maxIdleTimeMS: 10000,
         });
         console.log('✅ Connected to MongoDB successfully');
     } catch (error) {
@@ -23,9 +35,8 @@ const connectToDatabase = async () => {
         console.log('1. Check if your IP address is whitelisted in MongoDB Atlas');
         console.log('2. Verify your connection string is correct');
         console.log('3. Make sure your cluster is running');
-        console.log('4. Check your network connection');
         
-        // Try to reconnect after 5 seconds
+        // Don't exit process on Render, just retry
         setTimeout(connectToDatabase, 5000);
     }
 };
@@ -68,7 +79,7 @@ const messageSchema = new mongoose.Schema({
     reactions: [
         {
             emoji: { type: String, required: true },
-            by: { type: String, required: true }, // userId of reactor
+            by: { type: String, required: true },
             at: { type: Date, default: Date.now }
         }
     ],
@@ -111,12 +122,14 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
-// CORS Configuration
+// CORS Configuration - Updated for Render
 const allowedOrigins = [
-    'https://chat-app-black-psi-43.vercel.app',
+    'https://chat-app-xir7.onrender.com',
+    'http://chat-app-xir7.onrender.com',
     'http://localhost:3000',
     'http://localhost:8000',
-    'http://127.0.0.1:5500' // For local HTML file testing
+    'http://127.0.0.1:5500',
+    'https://*.onrender.com' // Allow all Render subdomains
 ];
 
 // Middleware
@@ -125,10 +138,18 @@ app.use(cors({
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
         
-        if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+        // Check if origin matches any allowed pattern
+        const isAllowed = allowedOrigins.some(allowed => {
+            if (allowed.includes('*')) {
+                const pattern = allowed.replace('*', '.*');
+                return new RegExp(pattern).test(origin);
+            }
+            return allowed === origin;
+        });
+        
+        if (!isAllowed) {
             console.warn('CORS blocked:', origin);
-            return callback(new Error(msg), false);
+            return callback(null, false);
         }
         return callback(null, true);
     },
@@ -137,20 +158,14 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Handle preflight requests
-app.options('*', cors());
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // JWT Secret (use environment variable in production)
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-// Production optimizations
-if (process.env.NODE_ENV === 'production') {
-    console.log('🔒 Running in production mode');
-    app.set('trust proxy', 1); // Trust first proxy
-}
+// Render specific: Trust proxy
+app.set('trust proxy', 1);
 
 // Authentication middleware
 const authenticateToken = (req, res, next) => {
@@ -171,11 +186,17 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// Serve static files (HTML, CSS, JS, audio) from the parent directory
+// Serve static files with correct MIME types for Render
 app.use(express.static(path.join(__dirname, '..'), {
-    setHeaders: (res, path) => {
-        if (path.endsWith('.html')) {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
+        if (filePath.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+        }
+        if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
         }
     }
 }));
@@ -185,7 +206,6 @@ app.use(express.static(path.join(__dirname, '..'), {
 app.post('/api/register', async (req, res) => {
     try {
         console.log('Registration attempt from:', req.headers.origin);
-        console.log('Registration body:', { ...req.body, password: '[HIDDEN]', confirmPassword: '[HIDDEN]' });
 
         // Check if MongoDB is connected
         if (mongoose.connection.readyState !== 1) {
@@ -255,12 +275,10 @@ app.post('/api/register', async (req, res) => {
     } catch (error) {
         console.error('Registration error:', error);
         
-        // Handle duplicate key errors
         if (error.code === 11000) {
             return res.status(400).json({ error: 'Email already registered' });
         }
         
-        // Handle validation errors
         if (error.name === 'ValidationError') {
             const errors = Object.values(error.errors).map(err => err.message);
             return res.status(400).json({ error: errors.join(', ') });
@@ -274,7 +292,6 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
     try {
         console.log('Login attempt from:', req.headers.origin);
-        console.log('Login body:', { ...req.body, password: '[HIDDEN]' });
 
         // Check if MongoDB is connected
         if (mongoose.connection.readyState !== 1) {
@@ -346,15 +363,16 @@ app.get('/api/health', (req, res) => {
     };
     
     res.json({
-        status: dbStatus === 1 ? 'healthy' : 'unhealthy',
+        status: 'ok',
         database: dbStates[dbStatus],
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development',
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        memoryUsage: process.memoryUsage()
     });
 });
 
-// Additional test endpoint
+// Test endpoint
 app.get('/api/test', (req, res) => {
     res.json({
         message: 'API is working!',
@@ -363,106 +381,64 @@ app.get('/api/test', (req, res) => {
     });
 });
 
-// Serve index.html for the root route and all other routes for SPA
-app.get('*', (req, res) => {
-    if (req.path.startsWith('/api/')) {
-        // Don't serve HTML for API routes
-        return res.status(404).json({ error: 'API endpoint not found' });
-    }
+// Root endpoint
+app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
-// Start the server
-const PORT = process.env.PORT || 8000;
-const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
-    console.log(`🔗 Test endpoint: http://localhost:${PORT}/api/test`);
-    console.log(`✅ CORS enabled for origins:`, allowedOrigins);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('SIGTERM received. Shutting down gracefully...');
-    server.close(() => {
-        console.log('Server closed');
-        mongoose.connection.close(false, () => {
-            console.log('MongoDB connection closed');
-            process.exit(0);
-        });
-    });
-});
-
-// Attach Socket.IO to the server
-const io = require('socket.io')(server, {
-    cors: { 
+// Socket.IO setup with Render-specific configuration
+const io = socketIo(server, {
+    cors: {
         origin: allowedOrigins,
         methods: ["GET", "POST"],
         credentials: true
     },
-    allowEIO3: true, // Allow Engine.IO v3 clients
-    transports: ['websocket', 'polling'],
+    transports: ['websocket', 'polling'], // Enable both transports for Render
     pingTimeout: 60000,
-    pingInterval: 25000
+    pingInterval: 25000,
+    // Render specific: Allow upgrade
+    allowUpgrades: true,
+    cookie: false
 });
 
-const users = {}; // Store active users
-const authenticatedUsers = new Map(); // Store authenticated users with their socket IDs
+const users = {};
+const authenticatedUsers = new Map();
 
-// Event: When a new client connects
+// Socket.IO connection handler
 io.on('connection', (socket) => {
-    console.log(`New connection: ${socket.id} from ${socket.handshake.headers.origin || 'unknown origin'}`);
+    console.log(`New connection: ${socket.id}`);
 
-    // Event: When a user authenticates and joins the chat
     socket.on('authenticate-and-join', async (token) => {
         try {
-            console.log('Authentication attempt for socket:', socket.id);
-            
-            // Verify JWT token
             const decoded = jwt.verify(token, JWT_SECRET);
             const { userId, name, email } = decoded;
             
             console.log(`Authenticated user joined: ${name} (${email})`);
             
-            // Check if user is already connected with a different socket
+            // Check for existing connection
             const existingSocketId = Array.from(authenticatedUsers.entries())
                 .find(([_, userInfo]) => userInfo.userId === userId)?.[0];
             
             if (existingSocketId && existingSocketId !== socket.id) {
-                // Disconnect the previous socket for this user
                 const existingSocket = io.sockets.sockets.get(existingSocketId);
                 if (existingSocket) {
-                    console.log(`Disconnecting previous session for user: ${name}`);
                     existingSocket.emit('authentication-error', 'Another session started with this account');
                     existingSocket.disconnect(true);
                 }
-                // Clean up the old session
                 delete users[existingSocketId];
                 authenticatedUsers.delete(existingSocketId);
             }
             
-            // Store user information
             users[socket.id] = name;
             authenticatedUsers.set(socket.id, { userId, name, email });
             
-            // Notify others
             socket.broadcast.emit('user-joined', name);
-            
-            // Send active users list to the new user
             socket.emit('active-users', Object.values(users));
+            socket.emit('authentication-success', { name, email, userId });
             
-            // Send authentication success
-            socket.emit('authentication-success', { 
-                name, 
-                email,
-                userId 
-            });
-            
-            // Load chat history for the authenticated user
+            // Load chat history
             try {
                 const messages = await Message.find().sort({ timestamp: 1 }).limit(50);
-                // Ensure every message has a messageId in the payload
                 const normalized = messages.map(m => ({
                     _id: m._id,
                     messageId: m.messageId || m._id.toString(),
@@ -484,31 +460,26 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Event: When a user sends a message
     socket.on('send', async (payload) => {
-        // payload: { message, messageId }
         if (!payload || !payload.message) {
             socket.emit('error', 'Message cannot be empty.');
             return;
         }
+        
         const senderName = users[socket.id];
-        if (!senderName) {
-            socket.emit('error', 'You are not registered in the chat.');
-            return;
-        }
         const authInfo = authenticatedUsers.get(socket.id);
-        if (!authInfo) {
-            socket.emit('error', 'Authentication required.');
+        
+        if (!senderName || !authInfo) {
+            socket.emit('error', 'You are not authenticated.');
             return;
         }
         
         const { message, messageId } = payload;
-        console.log(`Message from ${senderName}: ${message}`);
         
-        // Save message to MongoDB
         try {
             const generatedId = new mongoose.Types.ObjectId().toString();
             const finalMessageId = messageId || generatedId;
+            
             const newMessage = new Message({
                 messageId: finalMessageId,
                 userId: authInfo.userId,
@@ -516,28 +487,26 @@ io.on('connection', (socket) => {
                 message: message.trim(),
                 timestamp: new Date()
             });
+            
             await newMessage.save();
-            console.log('Message saved to database with ID:', finalMessageId);
+            
+            const broadcastMessage = {
+                message: message.trim(),
+                name: senderName,
+                userId: authInfo.userId,
+                timestamp: new Date().toISOString(),
+                messageId: finalMessageId
+            };
+            
+            socket.broadcast.emit('receive', broadcastMessage);
+            socket.emit('message-sent', broadcastMessage);
+            
         } catch (error) {
             console.error('Error saving message:', error);
             socket.emit('error', 'Failed to save message. Please try again.');
-            return;
         }
-        
-        // Broadcast message to all other clients
-        const broadcastMessage = {
-            message: message.trim(),
-            name: senderName,
-            userId: authInfo.userId,
-            timestamp: new Date().toISOString(),
-            messageId: messageId || new mongoose.Types.ObjectId().toString()
-        };
-        
-        socket.broadcast.emit('receive', broadcastMessage);
-        socket.emit('message-sent', broadcastMessage); // Confirm to sender
     });
 
-    // Event: Add reaction to a message (prevent duplicates from same user)
     socket.on('add-reaction', async ({ messageId, reaction }) => {
         try {
             const authInfo = authenticatedUsers.get(socket.id);
@@ -552,11 +521,9 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            // If the same user already added the same reaction, ignore
             const alreadyReacted = (msg.reactions || []).some(r => r.by === authInfo.userId && r.emoji === reaction);
             if (alreadyReacted) {
-                console.log(`User ${authInfo.name} already reacted with ${reaction} to message ${messageId}`);
-                return; // prevent duplicate flood
+                return;
             }
 
             msg.reactions.push({ 
@@ -565,8 +532,6 @@ io.on('connection', (socket) => {
                 at: new Date()
             });
             await msg.save();
-            
-            console.log(`Reaction ${reaction} added to message ${messageId} by ${authInfo.name}`);
             
             io.emit('reaction-added', { 
                 messageId, 
@@ -581,7 +546,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Event: Edit a message (only owner)
     socket.on('edit-message', async ({ messageId, newText }) => {
         try {
             const authInfo = authenticatedUsers.get(socket.id);
@@ -610,8 +574,6 @@ io.on('connection', (socket) => {
             msg.editedAt = new Date();
             await msg.save();
             
-            console.log(`Message ${messageId} edited by ${authInfo.name}`);
-            
             io.emit('message-edited', { 
                 messageId, 
                 newText: newText.trim(), 
@@ -625,7 +587,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Event: Delete a message (only owner)
     socket.on('delete-message', async ({ messageId }) => {
         try {
             const authInfo = authenticatedUsers.get(socket.id);
@@ -647,8 +608,6 @@ io.on('connection', (socket) => {
             
             await Message.deleteOne({ messageId });
             
-            console.log(`Message ${messageId} deleted by ${authInfo.name}`);
-            
             io.emit('message-deleted', { 
                 messageId,
                 deletedBy: authInfo.name 
@@ -659,12 +618,10 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Event: Get active users
     socket.on('get-active-users', () => {
         socket.emit('active-users', Object.values(users));
     });
 
-    // Event: When a user disconnects
     socket.on('disconnect', (reason) => {
         const userName = users[socket.id];
         const userInfo = authenticatedUsers.get(socket.id);
@@ -672,19 +629,48 @@ io.on('connection', (socket) => {
         console.log(`User disconnected: ${userName || 'Unknown'} (${socket.id}), reason: ${reason}`);
         
         if (userName) {
-            console.log(`${userName} left the chat`);
             delete users[socket.id];
             authenticatedUsers.delete(socket.id);
             
             socket.broadcast.emit('left', userName);
             io.emit('active-users', Object.values(users));
-            console.log(`Active users count: ${Object.keys(users).length}`);
         }
     });
 
-    // Event: Handle errors
     socket.on('error', (error) => {
         console.error(`Socket error from ${socket.id}: ${error}`);
         socket.emit('error', 'An error occurred. Please try again.');
     });
+});
+
+// Start server with Render-specific configuration
+server.listen(PORT, HOST, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📊 Health check: https://chat-app-xir7.onrender.com/api/health`);
+    console.log(`🔗 Test endpoint: https://chat-app-xir7.onrender.com/api/test`);
+    console.log(`✅ CORS enabled for multiple origins`);
+});
+
+// Graceful shutdown for Render
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received. Shutting down gracefully...');
+    server.close(() => {
+        console.log('Server closed');
+        mongoose.connection.close(false, () => {
+            console.log('MongoDB connection closed');
+            process.exit(0);
+        });
+    });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    // Don't exit the process on Render
+});
+
+process.on('unhandledRejection', (error) => {
+    console.error('Unhandled Rejection:', error);
+    // Don't exit the process on Render
 });
