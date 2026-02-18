@@ -1,11 +1,11 @@
 {
   "name": "chat-app",
   "version": "1.0.0",
-  "description": "Real-time Chat Application with Authentication",
-  "main": "index.js",
+  "description": "Real-time Chat Application",
+  "main": "nodeServer/index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "cd nodeServer && node index.js",
+    "dev": "cd nodeServer && nodemon index.js"
   },
   "dependencies": {
     "express": "^4.18.2",

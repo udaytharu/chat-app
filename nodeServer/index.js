@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
-const fs = require('fs'); // Add this for file system operations
+const fs = require('fs');
 
 const app = express();
 
@@ -14,6 +14,22 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 10000;
 const HOST = '0.0.0.0';
+
+// Get the root directory (one level up from nodeServer)
+const rootDir = path.join(__dirname, '..');
+const publicDir = path.join(rootDir, 'public');
+
+console.log('🔍 Current directory (__dirname):', __dirname);
+console.log('🔍 Root directory:', rootDir);
+console.log('🔍 Public directory:', publicDir);
+
+// Check if public directory exists
+if (fs.existsSync(publicDir)) {
+    console.log('✅ Public directory found');
+    console.log('📄 Files in public:', fs.readdirSync(publicDir));
+} else {
+    console.log('❌ Public directory NOT found at:', publicDir);
+}
 
 // MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://udaytharu813_db_user:C3gkHEbI9SwOus7R@clusterchat.p0wyapu.mongodb.net/chat-app?retryWrites=true&w=majority';
@@ -130,7 +146,7 @@ const allowedOrigins = [
 app.use(cors({
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+        if (allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         } else {
             console.warn('CORS blocked:', origin);
@@ -170,86 +186,36 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// DEBUG: Check directory structure
-console.log('🔍 Current directory:', __dirname);
-console.log('🔍 Files in current directory:', fs.readdirSync(__dirname));
-
-// Try multiple possible paths for static files
-const possiblePaths = [
-    path.join(__dirname, 'public'),
-    path.join(__dirname, '..', 'public'),
-    __dirname,
-    path.join(__dirname, '..')
-];
-
-let staticPath = null;
-for (const testPath of possiblePaths) {
-    const indexPath = path.join(testPath, 'index.html');
-    if (fs.existsSync(indexPath)) {
-        staticPath = testPath;
-        console.log('✅ Found static files at:', staticPath);
-        break;
-    } else {
-        console.log('❌ No index.html at:', indexPath);
-    }
-}
-
-// If found, use that path
-if (staticPath) {
-    app.use(express.static(staticPath, {
-        setHeaders: (res, filePath) => {
-            if (filePath.endsWith('.html')) {
-                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            }
-            if (filePath.endsWith('.js')) {
-                res.setHeader('Content-Type', 'application/javascript');
-                res.setHeader('Cache-Control', 'public, max-age=3600');
-            }
-            if (filePath.endsWith('.css')) {
-                res.setHeader('Content-Type', 'text/css');
-                res.setHeader('Cache-Control', 'public, max-age=3600');
-            }
-            if (filePath.endsWith('.mp3')) {
-                res.setHeader('Content-Type', 'audio/mpeg');
-            }
+// Serve static files from the public directory (one level up)
+app.use(express.static(publicDir, {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         }
-    }));
-}
+        if (filePath.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+        }
+        if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+        }
+    }
+}));
 
-// Explicit route for root
+// Root route
 app.get('/', (req, res) => {
-    // Try multiple locations for index.html
-    const possibleIndexPaths = [
-        path.join(__dirname, 'public', 'index.html'),
-        path.join(__dirname, 'index.html'),
-        path.join(__dirname, '..', 'public', 'index.html'),
-        path.join(__dirname, '..', 'index.html')
-    ];
+    const indexPath = path.join(publicDir, 'index.html');
     
-    for (const indexPath of possibleIndexPaths) {
-        if (fs.existsSync(indexPath)) {
-            console.log('✅ Serving index.html from:', indexPath);
-            return res.sendFile(indexPath);
-        }
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.status(404).send(`
+            <h1>❌ index.html not found</h1>
+            <p>Looking for: ${indexPath}</p>
+            <p>Public directory: ${publicDir}</p>
+            <p>Files in public: ${fs.existsSync(publicDir) ? fs.readdirSync(publicDir).join(', ') : 'Directory not found'}</p>
+            <p>API is working: <a href="/api/test">/api/test</a></p>
+        `);
     }
-    
-    // If no index.html found, show debug info
-    res.status(404).send(`
-        <h1>❌ Cannot GET /</h1>
-        <h2>Debug Information:</h2>
-        <p><strong>Current directory:</strong> ${__dirname}</p>
-        <p><strong>Files in current directory:</strong></p>
-        <ul>
-            ${fs.readdirSync(__dirname).map(file => `<li>${file}</li>`).join('')}
-        </ul>
-        <p><strong>Looking for index.html at:</strong></p>
-        <ul>
-            ${possibleIndexPaths.map(p => `<li>${p} - ${fs.existsSync(p) ? '✅ Found' : '❌ Not found'}</li>`).join('')}
-        </ul>
-        <p><strong>Environment:</strong> ${process.env.NODE_ENV || 'development'}</p>
-        <p><strong>API Test:</strong> <a href="/api/test">/api/test</a></p>
-        <p><strong>Health Check:</strong> <a href="/api/health">/api/health</a></p>
-    `);
 });
 
 // Authentication Routes
@@ -395,8 +361,12 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development',
         uptime: process.uptime(),
-        directory: __dirname,
-        files: fs.readdirSync(__dirname)
+        paths: {
+            rootDir: rootDir,
+            publicDir: publicDir,
+            publicExists: fs.existsSync(publicDir),
+            indexHtmlExists: fs.existsSync(path.join(publicDir, 'index.html'))
+        }
     });
 });
 
@@ -660,6 +630,7 @@ io.on('connection', (socket) => {
 server.listen(PORT, HOST, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`📁 Serving static files from: ${publicDir}`);
     console.log(`📊 Health check: /api/health`);
     console.log(`🔗 Test endpoint: /api/test`);
 });
