@@ -6,24 +6,24 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const http = require('http');
 const socketIo = require('socket.io');
+const fs = require('fs'); // Add this for file system operations
 
 const app = express();
 
-// Render specific: Use the server's hostname and port
+// Server configuration
 const server = http.createServer(app);
-const PORT = process.env.PORT || 10000; // Render uses dynamic ports, default 10000
-const HOST = '0.0.0.0'; // Bind to all interfaces
+const PORT = process.env.PORT || 10000;
+const HOST = '0.0.0.0';
 
-// MongoDB connection - Use environment variable in production
+// MongoDB connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://udaytharu813_db_user:C3gkHEbI9SwOus7R@clusterchat.p0wyapu.mongodb.net/chat-app?retryWrites=true&w=majority';
 
-// Connect to MongoDB with better error handling for Render
+// Connect to MongoDB
 const connectToDatabase = async () => {
     try {
         await mongoose.connect(MONGODB_URI, {
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
-            // Add these options for better stability on Render
             maxPoolSize: 10,
             minPoolSize: 2,
             maxIdleTimeMS: 10000,
@@ -31,12 +31,6 @@ const connectToDatabase = async () => {
         console.log('✅ Connected to MongoDB successfully');
     } catch (error) {
         console.error('❌ MongoDB connection error:', error.message);
-        console.log('\n🔧 Troubleshooting steps:');
-        console.log('1. Check if your IP address is whitelisted in MongoDB Atlas');
-        console.log('2. Verify your connection string is correct');
-        console.log('3. Make sure your cluster is running');
-        
-        // Don't exit process on Render, just retry
         setTimeout(connectToDatabase, 5000);
     }
 };
@@ -122,36 +116,26 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
-// CORS Configuration - Updated for Render
+// CORS Configuration
 const allowedOrigins = [
     'https://chat-app-xir7.onrender.com',
     'http://chat-app-xir7.onrender.com',
     'http://localhost:3000',
-    'http://localhost:8000',
+    'http://localhost:5500',
     'http://127.0.0.1:5500',
-    'https://*.onrender.com' // Allow all Render subdomains
+    'http://localhost:8000'
 ];
 
 // Middleware
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-        
-        // Check if origin matches any allowed pattern
-        const isAllowed = allowedOrigins.some(allowed => {
-            if (allowed.includes('*')) {
-                const pattern = allowed.replace('*', '.*');
-                return new RegExp(pattern).test(origin);
-            }
-            return allowed === origin;
-        });
-        
-        if (!isAllowed) {
+        if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+            callback(null, true);
+        } else {
             console.warn('CORS blocked:', origin);
-            return callback(null, false);
+            callback(null, false);
         }
-        return callback(null, true);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -161,10 +145,10 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// JWT Secret (use environment variable in production)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// JWT Secret
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production-2024';
 
-// Render specific: Trust proxy
+// Trust proxy
 app.set('trust proxy', 1);
 
 // Authentication middleware
@@ -186,30 +170,94 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// Serve static files with correct MIME types for Render
-app.use(express.static(path.join(__dirname, '..'), {
-    setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.html')) {
-            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+// DEBUG: Check directory structure
+console.log('🔍 Current directory:', __dirname);
+console.log('🔍 Files in current directory:', fs.readdirSync(__dirname));
+
+// Try multiple possible paths for static files
+const possiblePaths = [
+    path.join(__dirname, 'public'),
+    path.join(__dirname, '..', 'public'),
+    __dirname,
+    path.join(__dirname, '..')
+];
+
+let staticPath = null;
+for (const testPath of possiblePaths) {
+    const indexPath = path.join(testPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+        staticPath = testPath;
+        console.log('✅ Found static files at:', staticPath);
+        break;
+    } else {
+        console.log('❌ No index.html at:', indexPath);
+    }
+}
+
+// If found, use that path
+if (staticPath) {
+    app.use(express.static(staticPath, {
+        setHeaders: (res, filePath) => {
+            if (filePath.endsWith('.html')) {
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            }
+            if (filePath.endsWith('.js')) {
+                res.setHeader('Content-Type', 'application/javascript');
+                res.setHeader('Cache-Control', 'public, max-age=3600');
+            }
+            if (filePath.endsWith('.css')) {
+                res.setHeader('Content-Type', 'text/css');
+                res.setHeader('Cache-Control', 'public, max-age=3600');
+            }
+            if (filePath.endsWith('.mp3')) {
+                res.setHeader('Content-Type', 'audio/mpeg');
+            }
         }
-        if (filePath.endsWith('.js')) {
-            res.setHeader('Content-Type', 'application/javascript');
-        }
-        if (filePath.endsWith('.css')) {
-            res.setHeader('Content-Type', 'text/css');
+    }));
+}
+
+// Explicit route for root
+app.get('/', (req, res) => {
+    // Try multiple locations for index.html
+    const possibleIndexPaths = [
+        path.join(__dirname, 'public', 'index.html'),
+        path.join(__dirname, 'index.html'),
+        path.join(__dirname, '..', 'public', 'index.html'),
+        path.join(__dirname, '..', 'index.html')
+    ];
+    
+    for (const indexPath of possibleIndexPaths) {
+        if (fs.existsSync(indexPath)) {
+            console.log('✅ Serving index.html from:', indexPath);
+            return res.sendFile(indexPath);
         }
     }
-}));
+    
+    // If no index.html found, show debug info
+    res.status(404).send(`
+        <h1>❌ Cannot GET /</h1>
+        <h2>Debug Information:</h2>
+        <p><strong>Current directory:</strong> ${__dirname}</p>
+        <p><strong>Files in current directory:</strong></p>
+        <ul>
+            ${fs.readdirSync(__dirname).map(file => `<li>${file}</li>`).join('')}
+        </ul>
+        <p><strong>Looking for index.html at:</strong></p>
+        <ul>
+            ${possibleIndexPaths.map(p => `<li>${p} - ${fs.existsSync(p) ? '✅ Found' : '❌ Not found'}</li>`).join('')}
+        </ul>
+        <p><strong>Environment:</strong> ${process.env.NODE_ENV || 'development'}</p>
+        <p><strong>API Test:</strong> <a href="/api/test">/api/test</a></p>
+        <p><strong>Health Check:</strong> <a href="/api/health">/api/health</a></p>
+    `);
+});
 
 // Authentication Routes
-// Register
 app.post('/api/register', async (req, res) => {
     try {
         console.log('Registration attempt from:', req.headers.origin);
 
-        // Check if MongoDB is connected
         if (mongoose.connection.readyState !== 1) {
-            console.error('Database not connected, state:', mongoose.connection.readyState);
             return res.status(503).json({ 
                 error: 'Database connection not available. Please try again later.' 
             });
@@ -217,7 +265,6 @@ app.post('/api/register', async (req, res) => {
 
         const { name, email, password, confirmPassword } = req.body;
 
-        // Validation
         if (!name || !email || !password || !confirmPassword) {
             return res.status(400).json({ error: 'All fields are required' });
         }
@@ -230,22 +277,18 @@ app.post('/api/register', async (req, res) => {
             return res.status(400).json({ error: 'Password must be at least 6 characters' });
         }
 
-        // Email validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             return res.status(400).json({ error: 'Please enter a valid email address' });
         }
 
-        // Check if user already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ error: 'User already exists with this email' });
         }
 
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 12);
 
-        // Create user
         const user = new User({
             name,
             email,
@@ -255,7 +298,6 @@ app.post('/api/register', async (req, res) => {
         await user.save();
         console.log('User registered successfully:', email);
 
-        // Generate JWT token
         const token = jwt.sign(
             { userId: user._id, email: user.email, name: user.name },
             JWT_SECRET,
@@ -279,23 +321,15 @@ app.post('/api/register', async (req, res) => {
             return res.status(400).json({ error: 'Email already registered' });
         }
         
-        if (error.name === 'ValidationError') {
-            const errors = Object.values(error.errors).map(err => err.message);
-            return res.status(400).json({ error: errors.join(', ') });
-        }
-        
         res.status(500).json({ error: 'Server error during registration' });
     }
 });
 
-// Login
 app.post('/api/login', async (req, res) => {
     try {
         console.log('Login attempt from:', req.headers.origin);
 
-        // Check if MongoDB is connected
         if (mongoose.connection.readyState !== 1) {
-            console.error('Database not connected, state:', mongoose.connection.readyState);
             return res.status(503).json({ 
                 error: 'Database connection not available. Please try again later.' 
             });
@@ -303,26 +337,20 @@ app.post('/api/login', async (req, res) => {
 
         const { email, password } = req.body;
 
-        // Validation
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password are required' });
         }
 
-        // Find user
         const user = await User.findOne({ email });
         if (!user) {
-            console.log('Login failed: User not found for email:', email);
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
-        // Check password
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
-            console.log('Login failed: Invalid password for email:', email);
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
-        // Generate JWT token
         const token = jwt.sign(
             { userId: user._id, email: user.email, name: user.name },
             JWT_SECRET,
@@ -347,7 +375,6 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Verify token
 app.get('/api/verify', authenticateToken, (req, res) => {
     res.json({ user: req.user });
 });
@@ -368,11 +395,11 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development',
         uptime: process.uptime(),
-        memoryUsage: process.memoryUsage()
+        directory: __dirname,
+        files: fs.readdirSync(__dirname)
     });
 });
 
-// Test endpoint
 app.get('/api/test', (req, res) => {
     res.json({
         message: 'API is working!',
@@ -381,22 +408,16 @@ app.get('/api/test', (req, res) => {
     });
 });
 
-// Root endpoint
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'index.html'));
-});
-
-// Socket.IO setup with Render-specific configuration
+// Socket.IO setup
 const io = socketIo(server, {
     cors: {
         origin: allowedOrigins,
         methods: ["GET", "POST"],
         credentials: true
     },
-    transports: ['websocket', 'polling'], // Enable both transports for Render
+    transports: ['websocket', 'polling'],
     pingTimeout: 60000,
     pingInterval: 25000,
-    // Render specific: Allow upgrade
     allowUpgrades: true,
     cookie: false
 });
@@ -404,7 +425,6 @@ const io = socketIo(server, {
 const users = {};
 const authenticatedUsers = new Map();
 
-// Socket.IO connection handler
 io.on('connection', (socket) => {
     console.log(`New connection: ${socket.id}`);
 
@@ -415,7 +435,6 @@ io.on('connection', (socket) => {
             
             console.log(`Authenticated user joined: ${name} (${email})`);
             
-            // Check for existing connection
             const existingSocketId = Array.from(authenticatedUsers.entries())
                 .find(([_, userInfo]) => userInfo.userId === userId)?.[0];
             
@@ -436,7 +455,6 @@ io.on('connection', (socket) => {
             socket.emit('active-users', Object.values(users));
             socket.emit('authentication-success', { name, email, userId });
             
-            // Load chat history
             try {
                 const messages = await Message.find().sort({ timestamp: 1 }).limit(50);
                 const normalized = messages.map(m => ({
@@ -636,23 +654,17 @@ io.on('connection', (socket) => {
             io.emit('active-users', Object.values(users));
         }
     });
-
-    socket.on('error', (error) => {
-        console.error(`Socket error from ${socket.id}: ${error}`);
-        socket.emit('error', 'An error occurred. Please try again.');
-    });
 });
 
-// Start server with Render-specific configuration
+// Start server
 server.listen(PORT, HOST, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`📊 Health check: https://chat-app-xir7.onrender.com/api/health`);
-    console.log(`🔗 Test endpoint: https://chat-app-xir7.onrender.com/api/test`);
-    console.log(`✅ CORS enabled for multiple origins`);
+    console.log(`📊 Health check: /api/health`);
+    console.log(`🔗 Test endpoint: /api/test`);
 });
 
-// Graceful shutdown for Render
+// Graceful shutdown
 process.on('SIGTERM', () => {
     console.log('SIGTERM received. Shutting down gracefully...');
     server.close(() => {
@@ -664,13 +676,10 @@ process.on('SIGTERM', () => {
     });
 });
 
-// Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
     console.error('Uncaught Exception:', error);
-    // Don't exit the process on Render
 });
 
 process.on('unhandledRejection', (error) => {
     console.error('Unhandled Rejection:', error);
-    // Don't exit the process on Render
 });

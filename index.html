@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/png" href="./favicon.svg" sizes="32x32">
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="stylesheet" href="./css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -18,20 +18,6 @@
     <nav>
         <h1>CHAT WITH UDAY</h1>
     </nav>
-        
-        <!-- Theme Toggle -->
-        <div class="theme-switch-wrapper">
-            <span class="theme-label" id="lightLabel">Light</span>
-            <label class="theme-switch" for="checkbox">
-                <input type="checkbox" id="checkbox" />
-                <div class="slider round">
-                    <span class="sun"></span>
-                    <span class="moon"></span>
-                </div>
-            </label>
-            <span class="theme-label" id="darkLabel">Dark</span>
-        </div>
-    </div>
 
     <!-- Authentication Modal -->
     <div id="authModal" class="auth-modal">
@@ -99,26 +85,28 @@
             <div class="auth-error" id="authError"></div>
         </div>
     </div>
+
     <div class="container">
         <!-- Messages will be dynamically added here -->
     </div>
+
     <form action="#" id="send-container">
-        <input type="text" name="messageInp" id="messageInp" placeholder="write your message here">
+        <input type="text" name="messageInp" id="messageInp" placeholder="Write your message here..." autocomplete="off">
         <button class="btn" type="submit">Send</button>
     </form>
 
     <footer>
         <div class="footer-content">
             <div class="footer-text">
-                Created by
-                <a href="https://www.udayrajchaudhary.com.np/">uday-studio</a>
+                Created with <span class="heart">❤️</span> by
+                <a href="https://www.udayrajchaudhary.com.np/" target="_blank" rel="noopener">uday-studio</a>
                 <span class="copyright">© 2024</span>
             </div>
             <div class="social-links">
-                <a href="#" class="social-icon"><i class="fab fa-github"></i></a>
-                <a href="#" class="social-icon"><i class="fab fa-linkedin"></i></a>
-                <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
-                <a href="#" class="social-icon"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="social-icon" target="_blank" rel="noopener"><i class="fab fa-github"></i></a>
+                <a href="#" class="social-icon" target="_blank" rel="noopener"><i class="fab fa-linkedin"></i></a>
+                <a href="#" class="social-icon" target="_blank" rel="noopener"><i class="fab fa-twitter"></i></a>
+                <a href="#" class="social-icon" target="_blank" rel="noopener"><i class="fab fa-instagram"></i></a>
             </div>
         </div>
     </footer>

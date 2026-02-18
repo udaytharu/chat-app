@@ -1,5 +1,5 @@
-// Initialize Socket.IO connection with automatic URL detection
-const socket = io(window.location.origin, {
+// Initialize Socket.IO connection
+const socket = io({
     transports: ['websocket', 'polling'],
     upgrade: true,
     rememberUpgrade: true,
@@ -19,7 +19,7 @@ let isAuthenticated = false;
 const form = document.getElementById('send-container');
 const messageInput = document.getElementById('messageInp');
 const messageContainer = document.querySelector('.container');
-const audio = new Audio('ting.mp3');
+const audio = new Audio('./ting.mp3');
 const sendButton = document.querySelector('.btn');
 
 // Authentication DOM Elements
@@ -32,6 +32,11 @@ const authError = document.getElementById('authError');
 const authTitle = document.getElementById('authTitle');
 const authSubtitle = document.getElementById('authSubtitle');
 
+// Password toggle buttons
+const loginPasswordToggle = document.getElementById('loginPasswordToggle');
+const registerPasswordToggle = document.getElementById('registerPasswordToggle');
+const confirmPasswordToggle = document.getElementById('confirmPasswordToggle');
+
 // Connection status element
 const connectionStatus = document.createElement('div');
 connectionStatus.id = 'connection-status';
@@ -40,6 +45,49 @@ connectionStatus.innerHTML = `
     <span class="status-text">Connecting...</span>
 `;
 document.body.appendChild(connectionStatus);
+
+// Password toggle functionality
+if (loginPasswordToggle) {
+    loginPasswordToggle.addEventListener('click', () => {
+        const input = document.getElementById('loginPassword');
+        const icon = loginPasswordToggle.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            icon.className = 'fas fa-eye';
+        }
+    });
+}
+
+if (registerPasswordToggle) {
+    registerPasswordToggle.addEventListener('click', () => {
+        const input = document.getElementById('registerPassword');
+        const icon = registerPasswordToggle.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            icon.className = 'fas fa-eye';
+        }
+    });
+}
+
+if (confirmPasswordToggle) {
+    confirmPasswordToggle.addEventListener('click', () => {
+        const input = document.getElementById('confirmPassword');
+        const icon = confirmPasswordToggle.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'fas fa-eye-slash';
+        } else {
+            input.type = 'password';
+            icon.className = 'fas fa-eye';
+        }
+    });
+}
 
 // Function to update connection status
 const updateConnectionStatus = (status, message) => {
@@ -83,7 +131,6 @@ const formatEditedAt = (dateString) => {
 
 // Function to append messages to the chat container
 const appendMessage = (data, position = 'left', messageId = null) => {
-    // Extract data
     const { name, message, timestamp, userId, editedAt } = data;
     const displayName = name || 'Unknown';
     const displayMessage = message || '';
@@ -98,22 +145,18 @@ const appendMessage = (data, position = 'left', messageId = null) => {
         messageElement.setAttribute('data-user-id', userId);
     }
     
-    // Create message content container
     const messageContent = document.createElement('div');
     messageContent.classList.add('message-content');
     messageContent.textContent = `@${displayName}: ${displayMessage}`;
     
-    // Create message info container
     const messageInfo = document.createElement('div');
     messageInfo.classList.add('message-info');
     
-    // Add timestamp
     const timestampElement = document.createElement('span');
     timestampElement.classList.add('message-timestamp');
     timestampElement.textContent = timestamp ? formatTimeFromDate(timestamp) : formatTime();
     messageInfo.appendChild(timestampElement);
     
-    // Add edited indicator if message was edited
     if (editedAt) {
         const editedElement = document.createElement('span');
         editedElement.classList.add('message-edited');
@@ -122,15 +165,12 @@ const appendMessage = (data, position = 'left', messageId = null) => {
         messageInfo.appendChild(editedElement);
     }
     
-    // Create message actions container (only for authenticated users)
     const messageActions = document.createElement('div');
     messageActions.classList.add('message-actions');
     
-    // Check if this is current user's message
     const isOwnMessage = isAuthenticated && currentUser && userId === currentUser.id;
     
     if (isAuthenticated) {
-        // Add reaction button for all authenticated users
         const reactBtn = document.createElement('button');
         reactBtn.classList.add('message-action-btn', 'react-btn');
         reactBtn.innerHTML = '<i class="fas fa-smile"></i>';
@@ -138,7 +178,6 @@ const appendMessage = (data, position = 'left', messageId = null) => {
         reactBtn.addEventListener('click', () => showReactionMenu(messageElement));
         messageActions.appendChild(reactBtn);
         
-        // Add edit and delete buttons only for own messages
         if (isOwnMessage) {
             const editBtn = document.createElement('button');
             editBtn.classList.add('message-action-btn', 'edit-btn');
@@ -153,30 +192,18 @@ const appendMessage = (data, position = 'left', messageId = null) => {
             deleteBtn.title = 'Delete message';
             deleteBtn.addEventListener('click', () => deleteMessage(messageElement));
             messageActions.appendChild(deleteBtn);
-        } else {
-            // Add report button for others' messages
-            // const reportBtn = document.createElement('button');
-            // reportBtn.classList.add('message-action-btn', 'report-btn');
-            // reportBtn.innerHTML = '<i class="fas fa-flag"></i>';
-            // reportBtn.title = 'Report message';
-            // reportBtn.addEventListener('click', () => {
-            //     showError('Report feature coming soon!');
-            // });
-            // messageActions.appendChild(reportBtn);
         }
     }
     
-    // Append all elements
     messageElement.appendChild(messageContent);
     messageElement.appendChild(messageInfo);
     messageElement.appendChild(messageActions);
     
     messageContainer.appendChild(messageElement);
     
-    // Scroll to bottom and play sound for incoming messages
     messageContainer.scrollTop = messageContainer.scrollHeight;
     if (position === 'left') {
-        audio.play();
+        audio.play().catch(e => console.log('Audio play failed:', e));
     }
     
     return messageElement;
@@ -191,7 +218,6 @@ const showReactionMenu = (messageElement) => {
     
     const reactions = ['😀', '😂', '😍', '👍', '👎', '❤️', '🔥', '🎉'];
     
-    // Remove existing reaction menu
     const existingMenu = document.querySelector('.reaction-menu');
     if (existingMenu) existingMenu.remove();
     
@@ -217,7 +243,6 @@ const showReactionMenu = (messageElement) => {
     
     document.body.appendChild(reactionMenu);
     
-    // Position the menu
     const menuRect = reactionMenu.getBoundingClientRect();
     const top = messageRect.top - menuRect.height - 10;
     const left = Math.min(
@@ -228,7 +253,6 @@ const showReactionMenu = (messageElement) => {
     reactionMenu.style.top = `${Math.max(10, top)}px`;
     reactionMenu.style.left = `${Math.max(10, left)}px`;
     
-    // Close on outside click
     setTimeout(() => {
         document.addEventListener('click', function closeMenu(e) {
             if (!reactionMenu.contains(e.target) && !messageElement.contains(e.target)) {
@@ -332,7 +356,6 @@ form.addEventListener('submit', (e) => {
         socket.emit('send', { message, messageId });
         messageInput.value = '';
         
-        // Button animation
         sendButton.classList.add('sending');
         setTimeout(() => sendButton.classList.remove('sending'), 300);
     } else if (!isAuthenticated) {
@@ -371,21 +394,25 @@ const authenticateUser = (token) => {
 };
 
 // Event Listeners
-showRegisterLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    loginForm.classList.remove('active');
-    registerForm.classList.add('active');
-    authTitle.textContent = 'Create Account';
-    authSubtitle.textContent = 'Join the chat community';
-});
+if (showRegisterLink) {
+    showRegisterLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        loginForm.classList.remove('active');
+        registerForm.classList.add('active');
+        authTitle.textContent = 'Create Account';
+        authSubtitle.textContent = 'Join the chat community';
+    });
+}
 
-showLoginLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    registerForm.classList.remove('active');
-    loginForm.classList.add('active');
-    authTitle.textContent = 'Welcome Back';
-    authSubtitle.textContent = 'Login to continue chatting';
-});
+if (showLoginLink) {
+    showLoginLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        registerForm.classList.remove('active');
+        loginForm.classList.add('active');
+        authTitle.textContent = 'Welcome Back';
+        authSubtitle.textContent = 'Login to continue chatting';
+    });
+}
 
 // Login Form Handler
 loginForm.addEventListener('submit', async (e) => {
@@ -493,16 +520,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 hideAuthModal();
                 authenticateUser(savedToken);
                 return;
+            } else {
+                localStorage.removeItem('authToken');
             }
         } catch (error) {
             console.log('Token verification failed:', error);
+            localStorage.removeItem('authToken');
         }
     }
     
-    // Show auth modal if no valid token
     authModal.classList.remove('hidden');
-    document.querySelector('.container').style.display = 'none';
-    document.querySelector('#send-container').style.display = 'none';
+    document.querySelector('.container').style.display = 'block';
+    document.querySelector('#send-container').style.display = 'flex';
 });
 
 // Socket.IO Event Listeners
@@ -511,8 +540,7 @@ socket.on('authentication-success', (userData) => {
     currentUser = { ...currentUser, ...userData };
     isAuthenticated = true;
     
-    // Add user info to header
-    const header = document.querySelector('header');
+    const header = document.querySelector('nav');
     if (header && !document.getElementById('user-info')) {
         const userInfo = document.createElement('div');
         userInfo.id = 'user-info';
@@ -542,7 +570,6 @@ socket.on('chat-history', (messages) => {
         const position = isOwnMessage ? 'right' : 'left';
         const messageElement = appendMessage(msg, position, msg.messageId);
         
-        // Add existing reactions
         if (msg.reactions && msg.reactions.length > 0) {
             msg.reactions.forEach(reaction => {
                 addReaction(messageElement, reaction.emoji);
@@ -559,7 +586,6 @@ socket.on('receive', (data) => {
 });
 
 socket.on('message-sent', (data) => {
-    // Update timestamp on our sent message
     const messageElement = document.querySelector(`[data-message-id="${data.messageId}"]`);
     if (messageElement) {
         const timestampElement = messageElement.querySelector('.message-timestamp');
@@ -626,6 +652,11 @@ socket.on('authentication-error', (error) => {
     isAuthenticated = false;
 });
 
+socket.on('error', (error) => {
+    console.error('Socket error:', error);
+    showError(error);
+});
+
 // Connection events
 socket.on('connect', () => {
     console.log('Connected to server');
@@ -635,9 +666,6 @@ socket.on('connect', () => {
 socket.on('disconnect', (reason) => {
     console.log('Disconnected:', reason);
     updateConnectionStatus('disconnected', 'Disconnected');
-    if (reason === 'io server disconnect') {
-        showError('Server disconnected. Reconnecting...');
-    }
 });
 
 socket.on('connect_error', (error) => {
@@ -660,17 +688,16 @@ socket.on('reconnect', (attempt) => {
     }
 });
 
-// Add CSS
+// Add CSS styles
 const addStyles = () => {
     const styles = `
-        /* Connection Status */
         #connection-status {
             position: fixed;
             top: 20px;
             right: 20px;
             padding: 10px 15px;
             border-radius: 8px;
-            background: var(--card-bg);
+            background: var(--container-bg);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             display: flex;
             align-items: center;
@@ -703,12 +730,6 @@ const addStyles = () => {
             color: var(--text-color);
         }
         
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        /* User Info */
         #user-info {
             display: flex;
             align-items: center;
@@ -740,187 +761,13 @@ const addStyles = () => {
             transform: scale(1.1);
         }
         
-        /* Message Actions */
-        .message-actions {
-            display: none;
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: var(--card-bg);
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            padding: 5px;
-            gap: 5px;
-        }
-        
-        .message:hover .message-actions {
-            display: flex;
-        }
-        
-        .message-action-btn {
-            background: transparent;
-            border: none;
-            color: var(--text-color-secondary);
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            cursor: pointer;
+        nav {
             display: flex;
             align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-        }
-        
-        .message-action-btn:hover {
-            background: var(--hover-bg);
-            color: var(--text-color);
-        }
-        
-        .react-btn:hover { color: #FF9800; }
-        .edit-btn:hover { color: #2196F3; }
-        .delete-btn:hover { color: #F44336; }
-        .report-btn:hover { color: #9C27B0; }
-        
-        /* Reaction Menu */
-        .reaction-menu {
-            position: fixed;
-            background: var(--card-bg);
-            border-radius: 20px;
-            padding: 8px;
-            display: flex;
-            gap: 8px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-            border: 1px solid var(--border-color);
-            z-index: 1001;
-            backdrop-filter: blur(10px);
-        }
-        
-        .reaction-option {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            padding: 8px;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .reaction-option:hover {
-            transform: scale(1.2);
-            background: var(--hover-bg);
-        }
-        
-        /* Message Reactions */
-        .message-reactions {
-            margin-top: 5px;
-            display: flex;
-            gap: 4px;
-            flex-wrap: wrap;
-            padding: 4px;
-        }
-        
-        .reaction-emoji {
-            font-size: 1.2rem;
-            animation: reactionPop 0.3s ease;
-        }
-        
-        @keyframes reactionPop {
-            0% { transform: scale(0); }
-            70% { transform: scale(1.2); }
-            100% { transform: scale(1); }
-        }
-        
-        /* System Messages */
-        .system-message {
-            text-align: center;
-            color: var(--text-color-secondary);
-            font-style: italic;
-            margin: 10px 0;
-            padding: 5px;
-            font-size: 0.9rem;
-        }
-        
-        /* Edit Input */
-        .message-edit-input {
-            width: 100%;
-            padding: 8px 12px;
-            border: 2px solid var(--color-blue-300);
-            border-radius: 8px;
-            background: var(--input-bg);
-            color: var(--text-color);
-            font-size: 1rem;
-            outline: none;
-        }
-        
-        /* Message Delete Animation */
-        @keyframes messageDelete {
-            0% { opacity: 1; transform: scale(1); }
-            100% { opacity: 0; transform: scale(0.5); }
-        }
-        
-        /* Auth Messages */
-        .auth-error {
-            background: rgba(244, 67, 54, 0.1) !important;
-            border-color: rgba(244, 67, 54, 0.2) !important;
-            color: #F44336 !important;
-        }
-        
-        .auth-success {
-            background: rgba(76, 175, 80, 0.1) !important;
-            border-color: rgba(76, 175, 80, 0.2) !important;
-            color: #4CAF50 !important;
-        }
-        
-        /* Fix for message background text issue */
-        .message-content {
-            word-break: break-word;
-            white-space: pre-wrap;
-            padding-right: 40px;
-        }
-        
-        .message.right .message-content {
-            padding-right: 40px;
-        }
-        
-        .message.left .message-content {
-            padding-right: 40px;
-        }
-        
-        /* Fix message positioning */
-        .message {
-            position: relative;
-            margin: 10px 0;
-            padding: 10px 15px;
-            border-radius: 15px;
-            max-width: 70%;
-            word-wrap: break-word;
-        }
-        
-        .message.right {
-            align-self: flex-end;
-            background: var(--message-right-bg);
-            color: var(--message-right-color);
-        }
-        
-        .message.left {
-            align-self: flex-start;
-            background: var(--message-left-bg);
-            color: var(--message-left-color);
-        }
-        
-        .message-info {
-            font-size: 0.8rem;
-            color: var(--text-color-secondary);
-            margin-top: 5px;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        
-        .message-edited {
-            font-style: italic;
-            opacity: 0.8;
+            justify-content: space-between;
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px auto;
         }
     `;
     
@@ -929,5 +776,4 @@ const addStyles = () => {
     document.head.appendChild(styleSheet);
 };
 
-// Initialize styles
 addStyles();
