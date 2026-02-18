@@ -179,16 +179,18 @@ PORT=8000
 
 ```
 chat-app/
-├── 📁 css/
+
+├── 📁 public/
+│   ├── 📁 css/
 │   └── style.css              # Modern CSS with themes
-├── 📁 js/
+│   ├── 📁 js/
 │   └── client.js              # Frontend JavaScript
+│   ├── index.html                 # Main HTML file
+│   ├── ting.mp3                   # Notification sound
 ├── 📁 nodeServer/
 │   ├── index.js               # Server and Socket.IO logic
 │   ├── package.json           # Dependencies
 │   └── 📁 node_modules/       # Installed packages
-├── index.html                 # Main HTML file
-├── ting.mp3                   # Notification sound
 └── README.md                  # This file
 ```
 
@@ -284,3 +286,4 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 </div>
+
