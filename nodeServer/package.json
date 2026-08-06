@@ -2,6 +2,7 @@
   "name": "chat-app",
   "version": "1.0.0",
   "description": "Real-time Chat Application",
+  "author": "Uday Tharu",
   "main": "nodeServer/index.js",
   "scripts": {
     "start": "cd nodeServer && node index.js",
